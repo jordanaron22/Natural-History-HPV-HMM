@@ -1,0 +1,929 @@
+---
+title: "EM Missing Data Full"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+ReduceStateSpace <- function(data){
+  for (i in 1:dim(data)[1]){
+    for (j in 13:17){
+      if (!is.na(data[i,j])){
+        if (data[i,j] == 2) {data[i,j] <- 1}
+        if (data[i,j] > 2) {data[i,j] <- 2}
+      }
+    } 
+    for (j in 18:22){
+      if (!is.na(data[i,j])){
+        if (data[i,j] < 2) {data[i,j] <- 0}
+        if (data[i,j] > 1) {data[i,j] <- 1}
+      }
+    }
+  }
+  return(data)
+}
+```
+
+```{r}
+createSubData <- function(rows, data_2429, all){
+  if (missing(all)){
+    # data <- vector("list", length = 2)
+    # data <- split(data_2429,data_2429$GL_MED_BMI>25)
+    # data_2429 <- data[[2]]
+    data_2429_altered <- sample_n(data_2429,rows)
+  } else {
+    data_2429_altered <- data_2429
+  }
+
+  data_2429_altered <- ReduceStateSpace(data_2429_altered)
+  
+  
+  HPV <- data_2429_altered[,8:12]
+  Pap <- data_2429_altered[,13:17]
+  Copa <- data_2429_altered[,18:22]
+  
+  for (i in 1:dim(Copa)[1]){
+    for (j in 1:dim(Copa)[2]){
+      if (!is.na(Copa[i,j]) & Copa[i,j] == 1){
+        
+        if (j < dim(Copa)[2]){
+          Copa[i,(j+1):dim(Copa)[2]] <- NaN
+          Pap[i,(j+1):dim(Copa)[2]] <- NaN
+          HPV[i,(j+1):dim(Copa)[2]] <- NaN
+          
+        }
+      }
+    }
+  }
+  data_full <- Combiner(HPV,Pap,Copa)
+  
+  
+  return(data_full)
+}
+```
+
+```{r}
+numOfStates <- function(data){
+  return(c(min(data, na.rm = TRUE):max(data, na.rm = TRUE)))
+}
+```
+
+```{r}
+Frequency <- function(data,state){
+  return(sum(data[,1] == state, na.rm = TRUE))
+}
+```
+
+
+
+```{r}
+InitialProbFull <- function(data, time){
+  if (missing(time)){
+    time <- 1
+  }
+  k <- numOfStates(data)
+  init_prob <- numeric(length(k))
+  for (i in 1:length(k)){
+    for (j in 1:dim(data)[3]){
+      #init_prob[i] <-init_prob + sum(data[,,j] == k[i], na.rm = TRUE)
+      init_prob[i] <- init_prob[i] + sum(data[,time,j] == k[i], na.rm = TRUE)
+    }
+  }
+  return(init_prob/sum(init_prob))
+}
+```
+
+
+```{r}
+Classification <- function(x_val,y_val,class_matrix){
+  return(class_matrix[[y_val+1,x_val+1]])
+}
+```
+
+```{r}
+Normalize <- function(data){
+  for (i in 1:dim(data)[1]){
+    if (sum(data[i,]) != 0){
+      data[i,] <- data[i,]/sum(data[i,])
+    }
+  }
+  return(data)
+}
+```
+
+```{r}
+ClassificationFull <- function(x_vals,y_val,class_matrix,data){
+  if (length(x_vals) == 1){
+    return(Classification(x_vals,y_val,class_matrix))
+  }
+  
+  
+  HPV_miss <- 0
+  Pap_miss <- 0
+  Copa_miss <- 0
+  
+  HPV_val <- -1
+  Pap_val <- -1
+  Copa_val <- -1
+  
+  if (var(x_vals) == 0.5){
+    Copa_miss <- 1
+    HPV_val <- x_vals[1] %/% 6
+    Pap_val <- (x_vals[1] %% 6) %/% 2
+  } else if (var(x_vals) == 4){
+    Pap_miss <- 1
+    HPV_val <- x_vals[1] %/% 6
+    Copa_val <- x_vals[1] %% 2
+  } else if (var(x_vals) == 18){
+    HPV_miss <- 1
+    Pap_val <- (x_vals[1] %% 6) %/% 2
+    Copa_val <- x_vals[1] %% 2
+  } else if (var(x_vals) == 3.5){
+    Pap_miss <- 1
+    Copa_miss <- 1
+    HPV_val <- x_vals[1] %/% 6
+  } else if (var(x_vals) == 14){
+    HPV_miss <- 1
+    Pap_miss <- 1
+    Copa_val <- x_vals[1] %% 2
+  } else if (var(x_vals) == 37/3){
+    HPV_miss <- 1
+    Copa_miss <- 1
+    Pap_val <- (x_vals[1] %% 6) %/% 2
+  }
+  
+  if (HPV_miss == 0 & Pap_miss == 0 & Copa_miss == 1){
+    Copa_0 <- 0
+    Copa_1 <- 1
+    for (i in 1:dim(data)[1]){
+      for (j in 1:dim(data)[2]){
+        if (!is.na(data[i,j,1]) & is.na(data[i,j,2])){
+          if (data[i,j,1] == ((HPV_val*6) + (Pap_val * 2) )){
+            Copa_0 <- Copa_0 + 1
+          } else if (data[i,j,1] == ((HPV_val*6) + (Pap_val * 2) + 1)){
+            Copa_1 <- Copa_1 + 1
+          }
+        }
+      }
+    }
+    Copa_sum <- Copa_0 + Copa_1
+    Copa_0 <- Copa_0/Copa_sum
+    Copa_1 <- Copa_1/Copa_sum
+    if(is.na(Copa_0)){
+      Copa_0 <- .5
+      Copa_1 <- .5
+    }
+    return_val <- (Copa_0 * Classification(x_vals[1],y_val,class_matrix)) + (Copa_1 * Classification(x_vals[2],y_val,class_matrix))
+    normalizing_factor <- 0
+    for (i in 0:11){
+      normalizing_factor <- normalizing_factor + (Copa_0 * Classification(x_vals[1],i,class_matrix)) + (Copa_1 * Classification(x_vals[2],i,class_matrix))
+    }
+  }
+  
+  else if (HPV_miss == 0 & Pap_miss == 1 & Copa_miss == 0){
+    Pap_0 <- 0
+    Pap_1 <- 0
+    Pap_2 <- 0
+    for (i in 1:dim(data)[1]){
+      for (j in 1:dim(data)[2]){
+        if (!is.na(data[i,j,1]) & is.na(data[i,j,2])){
+          if (data[i,j,1] ==  ((HPV_val*6) + Copa_val)){
+            Pap_0 <- Pap_0 + 1
+          } else if (data[i,j,1] ==  ((HPV_val*6) + Copa_val + 2)){
+            Pap_1 <- Pap_1 + 1
+          } else if (data[i,j,1] ==  ((HPV_val*6) + Copa_val + 2)){
+            Pap_2 <- Pap_2 + 1
+          }
+        }
+      }
+    }
+    Pap_sum <- Pap_0 + Pap_1 + Pap_2
+    Pap_0 <- Pap_0/Pap_sum
+    Pap_1 <- Pap_1/Pap_sum
+    Pap_2 <- Pap_2/Pap_sum
+    if (is.na(Pap_0)){
+      Pap_0 <- 1/3
+      Pap_1 <- 1/3
+      Pap_2 <- 1/3
+    }
+    return_val <- (Pap_0 * Classification(x_vals[1],y_val,class_matrix)) + (Pap_1 * Classification(x_vals[2],y_val,class_matrix)) + (Pap_2 * Classification(x_vals[3],y_val,class_matrix))
+    normalizing_factor <- 0
+    for (i in 0:11){
+      normalizing_factor <- normalizing_factor + (Pap_0 * Classification(x_vals[1],i,class_matrix)) + (Pap_1 * Classification(x_vals[2],i,class_matrix)) + (Pap_2 * Classification(x_vals[3],i,class_matrix))
+    }
+  } 
+  
+  else if (HPV_miss == 1 & Pap_miss == 0 & Copa_miss == 0){
+    HPV_0 <- 0
+    HPV_1 <- 1
+    for (i in 1:dim(data)[1]){
+      for (j in 1:dim(data)[2]){
+        if (!is.na(data[i,j,1]) & is.na(data[i,j,2])){
+          if (data[i,j,1] == ((Pap_val * 2)  + Copa_val)){
+            HPV_0 <- HPV_0 + 1
+          } else if (data[i,j,1] == ((Pap_val * 2)  + Copa_val + 1)){
+            HPV_1 <- HPV_1 + 1
+          }
+        }
+      }
+    }
+    HPV_sum <- HPV_0 + HPV_1
+    HPV_0 <- HPV_0/HPV_sum
+    HPV_1 <- HPV_1 / HPV_sum
+    if (is.na(HPV_0)){
+      HPV_0 <- .5
+      HPV_1 <- .5
+    }
+    return_val <- (HPV_0 * Classification(x_vals[1],y_val,class_matrix)) + (HPV_1 * Classification(x_vals[2],y_val,class_matrix))
+    normalizing_factor <- 0
+    for (i in 0:11){
+      normalizing_factor <- normalizing_factor + (HPV_0 * Classification(x_vals[1],i,class_matrix)) + (HPV_1 * Classification(x_vals[2],i,class_matrix))
+    }
+  }
+  
+  else if (HPV_miss == 0 & Pap_miss == 1 & Copa_miss == 1){
+    PapCopa_00 <- 0
+    PapCopa_01 <- 0
+    PapCopa_10 <- 0
+    PapCopa_11 <- 0
+    PapCopa_20 <- 0
+    PapCopa_21 <- 0
+    for (i in 1:dim(data)[1]){
+      for (j in 1:dim(data)[2]){
+        if (!is.na(data[i,j,1]) & is.na(data[i,j,2])){
+          if (data[i,j,1] == (HPV_val*6)){
+            PapCopa_00 <- PapCopa_00 + 1
+          } else if (data[i,j,1] == (HPV_val*6 + 1)){
+            PapCopa_01 <- PapCopa_01 + 1
+          } else if (data[i,j,1] == (HPV_val*6 + 2)){
+            PapCopa_10 <- PapCopa_10 + 1
+          } else if (data[i,j,1] == (HPV_val*6 + 3)){
+            PapCopa_11 <- PapCopa_11 + 1
+          } else if (data[i,j,1] == (HPV_val*6 + 4)){
+            PapCopa_20 <- PapCopa_20 + 1
+          } else if (data[i,j,1] == (HPV_val*6 + 5)){
+            PapCopa_21 <- PapCopa_21 + 1
+          }
+        }
+      }
+    }
+    PapCopa_sum <- (PapCopa_00+PapCopa_01+PapCopa_10+PapCopa_11+PapCopa_20+PapCopa_21)
+    PapCopa_00 <- PapCopa_00/PapCopa_sum
+    PapCopa_01 <- PapCopa_01/PapCopa_sum
+    PapCopa_10 <- PapCopa_10/PapCopa_sum
+    PapCopa_11 <- PapCopa_11/PapCopa_sum
+    PapCopa_20 <- PapCopa_20/PapCopa_sum
+    PapCopa_21 <- PapCopa_21/PapCopa_sum
+    if(is.na(PapCopa_00)){
+      PapCopa_00 <- 1/6
+      PapCopa_01 <- 1/6
+      PapCopa_10 <- 1/6
+      PapCopa_11 <- 1/6
+      PapCopa_20 <- 1/6
+      PapCopa_21 <- 1/6
+    }
+    return_val <- (PapCopa_00 * Classification(x_vals[1],y_val,class_matrix)) + (PapCopa_01 * Classification(x_vals[2],y_val,class_matrix)) + (PapCopa_10 * Classification(x_vals[3],y_val,class_matrix)) + 
+      (PapCopa_11 * Classification(x_vals[4],y_val,class_matrix)) + (PapCopa_20 * Classification(x_vals[5],y_val,class_matrix)) + (PapCopa_21 * Classification(x_vals[6],y_val,class_matrix)) 
+    normalizing_factor <- 0
+    for (i in 0:11){
+      normalizing_factor <- normalizing_factor + (PapCopa_00 * Classification(x_vals[1],i,class_matrix)) + (PapCopa_01 * Classification(x_vals[2],i,class_matrix)) + 
+        (PapCopa_10 * Classification(x_vals[3],i,class_matrix)) + (PapCopa_11 * Classification(x_vals[4],i,class_matrix)) + (PapCopa_20 * Classification(x_vals[5],i,class_matrix)) + 
+        (PapCopa_21 * Classification(x_vals[6],i,class_matrix)) 
+    }
+  } 
+  
+  else if (HPV_miss == 1 & Pap_miss == 0 & Copa_miss == 1){
+    HPVCopa_00 <- 0
+    HPVCopa_01 <- 0
+    HPVCopa_10 <- 0
+    HPVCopa_11 <- 0
+    for (i in 1:dim(data)[1]){
+      for (j in 1:dim(data)[2]){
+        if (!is.na(data[i,j,1]) & is.na(data[i,j,2])){
+          if(data[i,j,1] == (Pap_val*2)){
+            HPVCopa_00 <- HPVCopa_00 + 1
+          } else if(data[i,j,1] == (Pap_val*2)+1){
+            HPVCopa_01 <- HPVCopa_01 + 1
+          } else if(data[i,j,1] == (Pap_val*2)+6){
+            HPVCopa_10 <- HPVCopa_10 + 1
+          } else if(data[i,j,1] == (Pap_val*2)+7){
+            HPVCopa_11 <- HPVCopa_11 + 1
+          } 
+        }
+      }
+    }
+    HPVCopa_sum <- HPVCopa_00 + HPVCopa_01 + HPVCopa_10 + HPVCopa_11
+    HPVCopa_00 <- HPVCopa_00/HPVCopa_sum
+    HPVCopa_01 <- HPVCopa_01/HPVCopa_sum
+    HPVCopa_10 <- HPVCopa_10/HPVCopa_sum
+    HPVCopa_11 <- HPVCopa_11/HPVCopa_sum
+    if(is.na(HPVCopa_00)){
+      HPVCopa_00 <- .25
+      HPVCopa_01 <- .25
+      HPVCopa_10 <- .25
+      HPVCopa_11 <- .25
+    }
+    return_val <- (HPVCopa_00 * Classification(x_vals[1],y_val,class_matrix)) + (HPVCopa_01 * Classification(x_vals[2],y_val,class_matrix)) + 
+      (HPVCopa_10 * Classification(x_vals[3],y_val,class_matrix)) + (HPVCopa_11 * Classification(x_vals[4],y_val,class_matrix)) 
+    normalizing_factor <- 0
+    for (i in 0:11){
+      normalizing_factor <- normalizing_factor + (HPVCopa_00 * Classification(x_vals[1],i,class_matrix)) + (HPVCopa_01 * Classification(x_vals[2],i,class_matrix)) + 
+      (HPVCopa_10 * Classification(x_vals[3],i,class_matrix)) + (HPVCopa_11 * Classification(x_vals[4],i,class_matrix)) 
+    }
+  }
+  
+  else if (HPV_miss == 1 & Pap_miss == 1 & Copa_miss == 0){
+    HPVPap_00 <- 0
+    HPVPap_01 <- 0
+    HPVPap_02 <- 0
+    HPVPap_10 <- 0
+    HPVPap_11 <- 0
+    HPVPap_12 <- 0
+    for (i in 1:dim(data)[1]){
+      for (j in 1:dim(data)[2]){
+        if (!is.na(data[i,j,1]) & is.na(data[i,j,2])){
+          if (data[i,j,1] == Copa_val){
+            HPVPap_00 <- HPVPap_00 + 1
+          } else if (data[i,j,1] == (Copa_val + 2)){
+            HPVPap_01 <- HPVPap_01 + 1
+          } else if (data[i,j,1] == (Copa_val + 4)){
+            HPVPap_02 <- HPVPap_02 + 1
+          } else if (data[i,j,1] == (Copa_val + 6)){
+            HPVPap_10 <- HPVPap_10 + 1
+          } else if (data[i,j,1] == (Copa_val + 8)){
+            HPVPap_11 <- HPVPap_11 + 1
+          } else if (data[i,j,1] == (Copa_val + 10)){
+            HPVPap_12 <- HPVPap_12 + 1
+          }
+        }
+      }
+    }
+    HPVPap_sum <- HPVPap_00 + HPVPap_01 + HPVPap_02 + HPVPap_10 + HPVPap_11 + HPVPap_12
+    HPVPap_00 <- HPVPap_00/HPVPap_sum
+    HPVPap_01 <- HPVPap_01/HPVPap_sum
+    HPVPap_02 <- HPVPap_02/HPVPap_sum
+    HPVPap_10 <- HPVPap_10/HPVPap_sum
+    HPVPap_11 <- HPVPap_11/HPVPap_sum
+    HPVPap_12 <- HPVPap_12/HPVPap_sum
+    if(is.na(HPVPap_00)){
+      HPVPap_00 <- 1/6
+      HPVPap_01 <- 1/6
+      HPVPap_02 <- 1/6
+      HPVPap_10 <- 1/6
+      HPVPap_11 <- 1/6
+      HPVPap_12 <- 1/6
+    }
+    return_val <- (HPVPap_00 * Classification(x_vals[1],y_val,class_matrix)) + (HPVPap_01 * Classification(x_vals[2],y_val,class_matrix)) + (HPVPap_02 * Classification(x_vals[3],y_val,class_matrix)) + 
+      (HPVPap_10 * Classification(x_vals[4],y_val,class_matrix)) + (HPVPap_11 * Classification(x_vals[5],y_val,class_matrix)) + (HPVPap_12 * Classification(x_vals[6],y_val,class_matrix))
+    normalizing_factor <- 0
+    for (i in 0:11){
+      normalizing_factor <- normalizing_factor + (HPVPap_00 * Classification(x_vals[1],i,class_matrix)) + (HPVPap_01 * Classification(x_vals[2],i,class_matrix)) + 
+        (HPVPap_02 * Classification(x_vals[3],i,class_matrix)) +(HPVPap_10 * Classification(x_vals[4],i,class_matrix)) + 
+        (HPVPap_11 * Classification(x_vals[5],i,class_matrix)) + (HPVPap_12 * Classification(x_vals[6],i,class_matrix))
+    }
+  }
+  
+  
+  
+  return(return_val/normalizing_factor)
+}
+```
+
+```{r}
+rs <- 0
+for (i in 0:11){
+  rs <- rs + ClassificationFull(c(1,3,5,7,9,11),i,Normalize(class_full), data_full)
+}
+print(rs)
+
+ClassificationFull(c(1,3,5,7,9,11),5,class_full, data_full)
+```
+
+```{r}
+createTransitionFull <- function(data){
+  
+  n <- dim(data)[1]
+  length <- dim(data)[2]
+  k <- numOfStates(data)
+  transition <- matrix(0L, nrow = length(k), ncol = length(k))
+  
+  for (j in 1:(length - 1)){
+    for (i in 1:n){
+      for (k1 in 1:length(data[i,j,])){
+        for (k2 in 1:length(data[i,j+1,])){
+          
+          if (!is.na(data[i,j,k1]) & !is.na(data[i,j+1,k2])){
+            transition[which(data[i,j,k1] == k),which(data[i,j+1,k2] == k)] = transition[which(data[i,j,k1] == k),which(data[i,j+1,k2] == k)] + 1
+          }
+          
+        }
+      }
+    }
+  }
+
+  return(Normalize(transition))
+}
+
+```
+
+```{r}
+#JASA paper method 
+ForwardIterFull <- function(data,time,individual,initial_probabilities,transition,class_matrix){
+  k <- numOfStates(data)
+  alpha_matrix<-vector("list",time)
+  alpha_i <- numeric(length(k))
+  
+  for (i in 1:time){
+    alpha_matrix[[i]] <- alpha_i
+  }
+  
+  for (i in 1:length(k)){
+    if (!is.na(data[individual,1,1])){
+      alpha_matrix[[1]][i] <- initial_probabilities[i] * ClassificationFull(data[individual,1,],k[i],class_matrix)
+    } else {
+      alpha_matrix[[1]][i] <- initial_probabilities[i]
+    }
+  }
+  if (time == 1){
+    return(alpha_matrix)
+  }
+
+  for (i in 2:time){
+    for (j in 1:length(k)){
+      if (!is.na(data[individual,i,1])){
+        alpha_matrix[[i]][j] <- (alpha_matrix[[i-1]] %*% transition[,j])*  ClassificationFull(data[individual,i,],k[j],class_matrix)
+      } else {
+        alpha_matrix[[i]][j] <- (alpha_matrix[[i-1]] %*% transition[,j])
+      }
+    }
+  }
+  return(alpha_matrix)
+}
+```
+
+```{r}
+#JASA method 
+BackwardIterFull <- function(data,time,individual,transition,class_matrix){
+  k <- numOfStates(data)
+  length <- dim(data)[2]
+  beta_i <- numeric(length(k))
+  misclass_vector <- numeric(length(k))
+  beta_matrix<-vector("list",length)
+  
+  for (i in 1:length){
+    beta_matrix[[i]] <- beta_i
+  }
+  
+  for (i in 1:length(k)){
+    beta_matrix[[length]][i] <- 1
+  }
+  if (time == length){
+    return(beta_matrix)
+  }
+  for (i in (length-1):time){
+    if (!is.na(data[individual,i+1,1])){
+      for (l in 1:length(k)){
+        misclass_vector[l] <- ClassificationFull(data[individual,i+1,],k[l],class_matrix)
+      }
+      for (j in 1:length(k)){
+        beta_matrix[[i]][j] <- sum(beta_matrix[[i+1]] * transition[j,] * misclass_vector)
+      }
+    } else {
+      for (j in 1:length(k)){
+        if (sum(beta_matrix[[i+1]]) == length(k)){
+          beta_matrix[[i]][j] <- 1
+        } else {
+         beta_matrix[[i]][j] <- sum(beta_matrix[[i+1]] * transition[j,]) 
+        }
+      }
+    }
+  }
+  
+  return(beta_matrix)
+}
+```
+
+```{r}
+CombinerHelper <- function(HPV,Pap,Copa,k1,k2,k3,dimen){
+  state_space = rep(NaN,dimen)
+  if (is.na(HPV)){HPV_miss <- 1}
+  else {HPV_miss <- 0}
+  
+  if (is.na(Pap)){Pap_miss <- 1}
+  else {Pap_miss <- 0}
+  
+  if (is.na(Copa)){Copa_miss <- 1}
+  else {Copa_miss <- 0}
+  
+  if (HPV_miss == 1 & Pap_miss == 0 & Copa_miss == 0){
+    base_val <- Pap*length(k3) + Copa
+    for (i in 1:length(k1)){
+      state_space[i] <- base_val + (length(k2) * length(k3) * k1[i])
+    }
+  }
+  
+  else if (HPV_miss == 0 & Pap_miss == 1 & Copa_miss == 0){
+    base_val <- HPV*length(k2)*length(k3) + Copa
+    for (i in 1:length(k2)){
+      state_space[i] <- base_val + (length(k3) * k2[i])
+    }
+  }
+  
+  else if (HPV_miss == 0 & Pap_miss == 0 & Copa_miss == 1){
+    if(HPV == 0  & Pap == 0){
+      state_space[1] <- 0
+    } else {
+      base_val <- HPV*length(k2)*length(k3) + Pap*length(k3)
+      for (i in 1:length(k3)){
+        state_space[i] <- base_val + (k3[i])
+      }
+    }
+  }
+  
+  else if (HPV_miss == 1 & Pap_miss == 1 & Copa_miss == 0){
+    base_val <- Copa
+    for (i in 1:length(k1)){
+      for (j in 1:length(k2)){
+        state_space[((i-1)*length(k2) + j)] <- base_val + (length(k2) * length(k3) * k1[i]) + (length(k3) * k2[j])
+      }
+    }
+  }
+  
+  else if (HPV_miss == 1 & Pap_miss == 0 & Copa_miss == 1){
+    if (Pap == 0){
+      for (i in 1:length(k1)){
+        state_space[i] <- 0 + (length(k2) * length(k3) * k1[i])
+      }
+    } else {
+      base_val <- Pap * length(k3)
+      for (i in 1:length(k1)){
+        for (j in 1:length(k3)){
+          state_space[((i-1)*length(k3) + j)] <- base_val + (length(k2) * length(k3) * k1[i]) + (k3[j])
+        }
+      }
+    }
+  }
+  
+  else if (HPV_miss == 0 & Pap_miss == 1 & Copa_miss == 1){
+    if (HPV == 0){
+      for (i in 1:length(k2)){
+        state_space[i] <- (length(k3) * k2[i])
+      }
+    } else {
+      base_val <- HPV * length(k2) * length(k3)
+      for (i in 1:length(k2)){
+        for (j in 1:length(k3)){
+          state_space[((i-1)*length(k3) + j)] <- base_val + (length(k3) * k2[i]) + (k3[j])
+        }
+      }
+    }
+  }
+  
+  #No missing
+  else {
+    state_space[1] <- (HPV * length(k2) * length(k3)) + (Pap * length(k3)) + Copa
+  }
+  
+  return(state_space)
+}
+```
+
+```{r}
+Combiner <- function(HPV,Pap,Copa){
+  l1 <- length(numOfStates(HPV))[[1]]
+  k1 <- numOfStates(HPV)
+  l2 <- length(numOfStates(Pap))
+  k2 <- numOfStates(Pap)
+  l3 <- length(numOfStates(Copa))
+  k3 <- numOfStates(Copa)
+  dimen <- max(l1*l2,l1*l3,l2,l3)
+  full_matrix <- array(0,c(dim(HPV)[1],dim(HPV)[2],dimen))
+  
+  for (i in 1:dim(HPV)[1]){
+    for (j in 1:dim(HPV)[2]){
+      
+      if (!is.na(HPV)[i,j] | !is.na(Pap)[i,j] | !is.na(Copa)[i,j]){
+        state_space <- CombinerHelper(HPV[i,j],Pap[i,j],Copa[i,j],k1,k2,k3,dimen)
+      } else {
+        state_space <- rep(NaN,dimen)
+      }
+      
+      for (k in 1:length(state_space)){
+        full_matrix[i,j,k] <- state_space[k]
+      }
+      
+    }
+  }
+  return(full_matrix)
+}
+```
+
+```{r}
+#takes in 2x2, 6x6, 5x5 classification matrix and outputs a 60 x 60 full classification matrix 
+FullClassificationMatrix <- function(HPV,Pap,Copa){
+  l1 <- dim(HPV)[1]
+  l2 <- dim(Pap)[1]
+  l3 <- dim(Copa)[1]
+  row_index <- 0
+  col_index <- 0
+  
+  full_matrix <- matrix(0L, nrow = l1*l2*l3, ncol = l1*l2*l3)
+  
+  for (i in 1:dim(HPV)[1]){
+    for (j in 1:dim(Pap)[1]){
+      for (k in 1:dim(Copa)[1]){
+        for (i2 in 1:dim(HPV)[2]){
+          for (j2 in 1:dim(Pap)[2]){
+            for (k2 in 1:dim(Copa)[2]){
+              row_index <- ((i-1)*l2*l3) + ((j-1)*l3) + k
+              col_index <- ((i2-1)*l2*l3) + ((j2-1)*l3) + k2
+              
+              full_matrix[row_index,col_index] <-full_matrix[row_index,col_index] + (HPV[i,i2] * Pap[j,j2] * Copa[k,k2])
+            }
+          }
+        }
+      }
+    }
+  }
+  return(full_matrix)
+}
+```
+
+```{r}
+YgivenXi <- function(data, time, individual, initial_probabilities, transition, class_matrix){
+  forward <- ForwardIterFull(data,time,individual,initial_probabilities, transition,class_matrix)
+  backward <- BackwardIterFull(data,time,individual,transition,class_matrix)
+  
+  num <- forward[[time]] * backward[[time]]
+  denom <- forward[[time]] %*% backward[[time]]
+  frac <- num/as.vector(denom)
+  return(frac)
+}
+```
+
+```{r}
+YgivenXiFast <- function(time,forward,backward){
+  num <- forward[[time]] * backward[[time]]
+  denom <- forward[[time]] %*% backward[[time]]
+  frac <- num/as.vector(denom)
+  return(frac)
+}
+```
+
+```{r}
+CalcYi <- function(data,time, initial_probabilities, transition, class_matrix){
+  k <- numOfStates(data)
+  prob_list <- numeric(length(k))
+  
+  for (i in 1:dim(data)[1]){
+    baum <- YgivenXi(data,time = time, individual = i,initial_probabilities, transition,class_matrix)
+    for (j in k){
+      prob_list[j+1] <- prob_list[j+1] + baum[j+1]
+    }
+  }
+  return(prob_list/dim(data)[1])
+} 
+```
+
+```{r}
+ExpectedTransition <- function(data, time,individual,initial_probabilities,transition,class_matrix,initial_state,new_state){
+  forward <- ForwardIterFull(data,time,individual,initial_probabilities,transition,class_matrix)
+  backward <- BackwardIterFull(data,time,individual,transition,class_matrix)
+  num <- forward[[time-1]][initial_state+1] * backward[[time]][new_state+1]
+  if (!is.na(data[individual,time,1])){
+    num <- num * transition[initial_state+1,new_state+1] * ClassificationFull(data[individual,time,],new_state,class_matrix)
+  } else {
+    num <- num * transition[initial_state+1,new_state+1]
+  }
+  denom <- sum(forward[[time]] %*% backward[[time]])
+  return(num/denom)
+}
+```
+
+```{r}
+ExpectedTransitionFast <- function(data,time,individual,transition,initial_state,new_state,forward,backward,class_matrix){
+  num <- forward[[time-1]][initial_state+1] * backward[[time]][new_state+1]
+  if (!is.na(data[individual,time,1])){
+    num <- num * transition[initial_state+1,new_state+1] * ClassificationFull(data[individual,time,],new_state,class_matrix)
+  } else {
+    num <- num * transition[initial_state+1,new_state+1]
+  }
+  denom <- sum(forward[[time]] %*% backward[[time]])
+  return(num/denom)
+}
+```
+
+```{r}
+CalcTransition <- function(data,initial_probabilities,transition,class_matrix){
+  k <- numOfStates(data)
+  num_matrix <- matrix(0L, nrow = length(k), ncol = length(k))
+  denom_matrix <- matrix(0L, nrow = length(k), ncol = length(k))
+  
+  for (i in 1:dim(data)[1]){
+    forward <- ForwardIterFull(data,dim(data)[2],i,initial_probabilities, transition,class_matrix)
+    backward <- BackwardIterFull(data,1,i,transition,class_matrix)
+    for (j in 2:dim(data)[2]){
+      probabilities <- YgivenXiFast(j-1,forward,backward)
+      for (l in 1:length(k)){
+        for (m in 1:length(k)){
+          num_matrix[l,m] <- num_matrix[l,m] + ExpectedTransitionFast(data,j,i,transition,k[l],k[m],forward,backward,class_matrix)
+        }
+      }
+    }
+  }
+  
+  
+  transition_matrix <- num_matrix
+  
+  #forces cancer -> cancer
+  for (i in 1:dim(transition_matrix)[1]){
+    if ( i %% 2 == 0){
+      for (j in 1:dim(transition_matrix)[2]){
+        if (j %% 2 == 1){
+          transition_matrix[i,j] <- 0
+        }
+      }
+    }
+  }
+
+  return(Normalize(transition_matrix))
+}
+```
+
+
+```{r}
+CalcClassificationDependant <- function(data, initial_probabilities, transition, class_matrix){
+  k <- numOfStates(data)
+  num_matrix <- matrix(0L, nrow = length(k), ncol = length(k))
+  
+  for (i in 1:dim(data)[1]){
+    forward <- ForwardIterFull(data,dim(data)[2],i,initial_probabilities, transition,class_matrix)
+    backward <- BackwardIterFull(data,1,i,transition,class_matrix)
+    for(j in 1:dim(data)[2]){
+      probabilities <- YgivenXiFast(j,forward,backward)
+      for(y_state in 1:length(k)){
+        for (l in 1:length(data[i,j,])){
+          if (!is.na(data[i,j,l])){
+            num_matrix[y_state,data[i,j,l]+1] <- num_matrix[y_state,data[i,j,l]+1] + probabilities[y_state]
+          }
+        }
+      }
+    }
+  }
+  return(Normalize(num_matrix))
+}
+```
+
+
+```{r}
+CalcClassification <- function(data, initial_probabilities, transition, class_matrix){
+
+
+  k <- numOfStates(data)
+  num_matrix_HPV <- matrix(0L, nrow = 2, ncol = 2)
+  num_matrix_Pap <- matrix(0L, nrow = 3, ncol = 3)
+  num_matrix_Copa <- matrix(0L, nrow = 2, ncol = 2)
+  
+  for (i in 1:dim(data)[1]){
+    forward <- ForwardIterFull(data,dim(data)[2],i,initial_probabilities, transition,class_matrix)
+    backward <- BackwardIterFull(data,1,i,transition,class_matrix)
+    for(j in 1:dim(data)[2]){
+      probabilities <- YgivenXiFast(j,forward,backward)
+      for(y_state in 1:length(k)){
+        for (l in 1:length(data[i,j,])){
+          if (!is.na(data[i,j,l])){
+            
+            if (data[i,j,l] < 6){
+              if (y_state < 7) { y <- 1}
+              else { y <- 2}
+              num_matrix_HPV[y,1] <- num_matrix_HPV[y,1] + probabilities[y_state]
+            } else {
+              if (y_state < 7) { y <- 1}
+              else { y <- 2}
+              num_matrix_HPV[y,2] <- num_matrix_HPV[y,2] + probabilities[y_state]
+            }
+            
+            if (data[i,j,l] %% 2 == 0){
+              if (y_state %% 2 == 1){y <- 1}
+              else {y<- 2}
+              num_matrix_Copa[y,1] <- num_matrix_Copa[y,1] + probabilities[y_state]
+            } else {
+              if (y_state %% 2 == 1){y <- 1}
+              else {y<- 2}
+              num_matrix_Copa[y,2] <- num_matrix_Copa[y,2] + probabilities[y_state]
+            }
+            #cooking
+            num_matrix_Copa[2,1] <- 0
+            num_matrix_Copa[2,2] <- 1
+            
+            if (data[i,j,l] %% 6 == 0 | data[i,j,l] %% 6 == 1){
+              if ((y_state-1) %% 6 == 0 | (y_state-1) %% 6 == 1){y <- 1}
+              else if ((y_state-1) %% 6 == 2 | (y_state-1) %% 6 == 3){y <- 2}
+              else if ((y_state-1) %% 6 == 4 | (y_state-1) %% 6 == 5){y <- 3}
+              num_matrix_Pap[y,1] <- num_matrix_Pap[y,1] + probabilities[y_state]
+              
+            
+            } else if (data[i,j,l] %% 6 == 2 | data[i,j,l] %% 6 == 3){
+              if ((y_state-1) %% 6 == 0 | (y_state-1) %% 6 == 1){y <- 1}
+              else if ((y_state-1) %% 6 == 2 | (y_state-1) %% 6 == 3){y <- 2}
+              else if ((y_state-1) %% 6 == 4 | (y_state-1) %% 6 == 5){y <- 3}
+              num_matrix_Pap[y,2] <- num_matrix_Pap[y,2] + probabilities[y_state]
+            
+            } else if (data[i,j,l] %% 6 == 4 | data[i,j,l] %% 6 == 5){
+              if ((y_state-1) %% 6 == 0 | (y_state-1) %% 6 == 1){y <- 1}
+              else if ((y_state-1) %% 6 == 2 | (y_state-1) %% 6 == 3){y <- 2}
+              else if ((y_state-1) %% 6 == 4 | (y_state-1) %% 6 == 5){y <- 3}
+              num_matrix_Pap[y,3] <- num_matrix_Pap[y,3] + probabilities[y_state]
+            
+            } 
+            
+          }
+        }
+      }
+    }
+  }
+  full_class <- FullClassificationMatrix(Normalize(num_matrix_HPV),Normalize(num_matrix_Pap),Normalize(num_matrix_Copa))
+  return(full_class)
+}
+```
+
+
+
+```{r}
+CalcLikelihood <- function(data, initial_probabilities,transition,class_matrix){
+  likelihood_sum <- 0
+  for (i in 1:dim(data)[1]){
+    forward <- ForwardIterFull(data,dim(data)[2],i,initial_probabilities,transition,class_matrix)
+    likelihood <- sum(forward[[dim(data)[2]]])
+    likelihood_sum <- likelihood_sum + likelihood
+  }
+  return(likelihood_sum)
+}
+```
+
+```{r}
+StackedBar <-function(y){
+  library(ggplot2)
+  library(reshape)
+  colnames(y) <- c(0:11)
+  rownames(y) <- c(0:11)
+  y <- t(y)
+  y <- as.data.frame(y)
+  y$ID <- rownames(y)
+  y.melt <- melt(y, id.var = 'ID')
+  y.melt <- within(y.melt, ID <- factor(ID, 
+      c('11','10','9','8','7','6','5','4','3','2','1','0'), 
+      ordered = TRUE))
+  ggplot(y.melt, aes(x = variable, y = value, fill = ID)) +
+      geom_bar(stat = 'identity') +
+      #coord_flip() + 
+      xlab(ifelse(y == tran_full,"Initial State","True State")) +
+      ylab(ifelse(y == tran_full,"Transition Probabilities","Classification Probabilities")) +
+      theme(legend.title=element_blank())
+}
+```
+
+```{r}
+GetMarginalProb <- function(data_matrix, type){
+  HPV <-  matrix(0L, nrow = 2, ncol = 2)
+  HPV[1,1] <- sum(data_matrix[1:6,1:6])
+  HPV[1,2] <- sum(data_matrix[1:6,7:12])
+  HPV[2,2] <- sum(data_matrix[7:12,7:12])
+  HPV[2,1] <- sum(data_matrix[7:12,1:6])
+  
+  Pap <-  matrix(0L, nrow = 3, ncol = 3)
+  Pap[1,1] <- sum(data_matrix[c(1,2,7,8),c(1,2,7,8)])
+  Pap[1,2] <- sum(data_matrix[c(1,2,7,8),c(3,4,9,10)])
+  Pap[1,3] <- sum(data_matrix[c(1,2,7,8),c(5,6,11,12)])
+  
+  Pap[2,1] <- sum(data_matrix[c(3,4,9,10),c(1,2,7,8)])
+  Pap[2,2] <- sum(data_matrix[c(3,4,9,10),c(3,4,9,10)])
+  Pap[2,3] <- sum(data_matrix[c(3,4,9,10),c(5,6,11,12)])
+  
+  Pap[3,1] <- sum(data_matrix[c(5,6,11,12),c(1,2,7,8)])
+  Pap[3,2] <- sum(data_matrix[c(5,6,11,12),c(3,4,9,10)])
+  Pap[3,3] <- sum(data_matrix[c(5,6,11,12),c(5,6,11,12)])
+  
+  Copa <-  matrix(0L, nrow = 2, ncol = 2)
+  Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+  Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+  Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+  Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+  
+  if (type == 1){
+    return(Normalize(HPV))
+  } else if (type == 2){
+    return(Normalize(Pap))
+  } else {
+    return(Normalize(Copa))
+  }
+
+}
+```
+
+
+
+

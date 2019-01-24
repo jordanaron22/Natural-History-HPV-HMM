@@ -1,0 +1,373 @@
+---
+title: "Parsing Sim"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+numOfStates <- function(data){
+  return(c(min(data, na.rm = TRUE):max(data, na.rm = TRUE)))
+}
+```
+
+```{r}
+setwd("absorbing/better class/sim/")
+list_of_names <- list.files()
+reps <- length(list_of_names)
+
+init_list <- vector("list", length = reps)
+tran_list <- vector("list", length = reps)
+class_list <- vector("list", length = reps)
+init_list_true <- vector("list", length = reps)
+tran_list_true <- vector("list", length = reps)
+class_list_true <-vector("list", length = reps)
+state_list <- vector("list", length = reps)
+state_list_true <- vector("list", length = reps)
+
+
+count <- 1
+for (name in list_of_names){
+  state_vec <- numeric(12)
+  state_vec_true <- numeric(12)
+  load(name)
+  init_list[[count]] <- to_save[[1]][[1]]
+  tran_list[[count]] <- to_save[[1]][[2]]
+  class_list[[count]] <- to_save[[1]][[3]]
+  init_list_true[[count]] <- to_save[[2]][[1]]
+  tran_list_true[[count]] <- to_save[[2]][[2]]
+  class_list_true[[count]] <- to_save[[2]][[3]]
+    
+  for (i in 1:dim(to_save[[1]][[4]])[1]){
+    for (j in 1:dim(to_save[[1]][[4]])[2]){
+      for (k in 1:dim(to_save[[1]][[4]])[3]){
+        
+        if (!is.na(to_save[[1]][[4]][i,j,k])){
+          state_vec[to_save[[1]][[4]][i,j,k]+1] <- state_vec[to_save[[1]][[4]][i,j,k]+1] + 1
+        }
+        if (!is.na(to_save[[2]][[4]][i,j,k])){
+          state_vec_true[to_save[[2]][[4]][i,j,k]+1] <- state_vec[to_save[[2]][[4]][i,j,k]+1] + 1
+        }
+      }
+    }
+  }
+  
+  state_list[[count]] <- state_vec
+  state_list_true[[count]] <- state_vec_true
+  
+  count <- count+1
+}
+```
+
+
+```{r}
+Normalize <- function(data){
+  for (i in 1:dim(data)[1]){
+    if (sum(data[i,]) != 0){
+      data[i,] <- data[i,]/sum(data[i,])
+    }
+  }
+  return(data)
+}
+```
+
+```{r}
+GetMarginalProb <- function(data_matrix, type){
+  HPV <-  matrix(0L, nrow = 2, ncol = 2)
+  HPV[1,1] <- sum(data_matrix[1:6,1:6])
+  HPV[1,2] <- sum(data_matrix[1:6,7:12])
+  HPV[2,2] <- sum(data_matrix[7:12,7:12])
+  HPV[2,1] <- sum(data_matrix[7:12,1:6])
+  
+  Pap <-  matrix(0L, nrow = 3, ncol = 3)
+  Pap[1,1] <- sum(data_matrix[c(1,2,7,8),c(1,2,7,8)])
+  Pap[1,2] <- sum(data_matrix[c(1,2,7,8),c(3,4,9,10)])
+  Pap[1,3] <- sum(data_matrix[c(1,2,7,8),c(5,6,11,12)])
+  
+  Pap[2,1] <- sum(data_matrix[c(3,4,9,10),c(1,2,7,8)])
+  Pap[2,2] <- sum(data_matrix[c(3,4,9,10),c(3,4,9,10)])
+  Pap[2,3] <- sum(data_matrix[c(3,4,9,10),c(5,6,11,12)])
+  
+  Pap[3,1] <- sum(data_matrix[c(5,6,11,12),c(1,2,7,8)])
+  Pap[3,2] <- sum(data_matrix[c(5,6,11,12),c(3,4,9,10)])
+  Pap[3,3] <- sum(data_matrix[c(5,6,11,12),c(5,6,11,12)])
+  
+  Copa <-  matrix(0L, nrow = 2, ncol = 2)
+  Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+  Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+  Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+  Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+  
+  if (type == 1){
+    return(Normalize(HPV))
+  } else if (type == 2){
+    return(Normalize(Pap))
+  } else {
+    return(Normalize(Copa))
+  }
+
+}
+```
+
+```{r}
+reps <- length(list_of_names)
+
+init_avg <- numeric(12)
+tran_avg <- matrix(0,12,12)
+class_avg <- matrix(0,12,12)
+init_avg_true <- numeric(12)
+tran_avg_true <- matrix(0,12,12)
+class_avg_true <- matrix(0,12,12)
+resid_tran_array <- array(0,dim = c(12,12,reps))
+resid_class_array <- array(0,dim = c(12,12,reps))
+
+init_resid <- vector("list", length = reps)
+tran_resid <- vector("list", length = reps)
+class_resid <- vector("list", length = reps)
+
+state_avg <- numeric(12)
+state_avg_true <- numeric(12)
+
+for (i in 1:reps){
+
+  init_avg <- init_avg + init_list[[i]]
+  tran_avg <- tran_avg + tran_list[[i]]
+  class_avg <- class_avg + class_list[[i]]
+  
+  
+  init_avg_true <- init_avg_true + init_list_true[[i]]
+  tran_avg_true <- tran_avg_true + tran_list_true[[i]] 
+  class_avg_true <- class_avg_true + class_list_true[[i]]
+  
+  state_avg <- state_avg + state_list[[i]]
+  state_avg_true <- state_avg_true + state_list_true[[i]]
+  
+  init_resid[[i]] <- init_list_true[[i]] - init_list[[i]]
+  tran_resid[[i]] <- tran_list_true[[i]] - tran_list[[i]]
+  class_resid[[i]] <- class_list_true[[i]] - class_list[[i]]
+  
+  
+  for (k in 1:12){
+    for (j in 1:12){
+      resid_tran_array[k,j,i] <- tran_resid[[i]][k,j]
+      resid_class_array[k,j,i] <- class_resid[[i]][k,j]
+    }
+  }
+
+  
+}
+
+init_avg <- init_avg/sum(init_avg)
+init_avg_true <- init_avg_true/sum(init_avg_true)
+tran_avg <- Normalize(tran_avg)
+tran_avg_true <- Normalize(tran_avg_true)
+class_avg <- Normalize(class_avg)
+class_avg_true <- Normalize(class_avg_true)
+state_avg <- state_avg/reps
+state_avg_true <- state_avg_true/reps
+```
+
+
+
+```{r}
+
+state_df <- data.frame(states = c(0:11),obs = state_avg, true = state_avg_true, prob = init_avg)
+library(ggplot2)
+
+
+ggplot(state_df, aes(states,obs)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Counts") + ggtitle("Frequency of Observed States") + 
+  theme_bw() + ylim(0,5500) + 
+  geom_text(aes(label=round(state_avg/sum(state_avg),3)), vjust=-1) 
+
+ggplot(state_df, aes(states,true)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Counts") + ggtitle("Frequency of True States") + 
+  theme_bw() + ylim(0,5500) + 
+  geom_text(aes(label=round(state_avg_true/sum(state_avg_true),3)), vjust=-1)
+
+ggplot(state_df, aes(states,prob)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Counts") + ggtitle("Initial Probability") + 
+  theme_bw() + ylim(0,.65) +
+  geom_text(aes(label=round(state_avg/sum(state_avg),3)), vjust=-1)
+
+  
+StackedBar(tran_avg,1)
+StackedBar(tran_avg_true,1)
+
+StackedBar(class_avg,2)
+StackedBar(class_avg_true,2)
+```
+
+```{r}
+library(scales)
+class_resid_avg <- class_avg - class_avg_true
+tran_resid_avg <- tran_avg - tran_avg_true
+
+rownames(class_resid_avg) <- c(0:11)
+colnames(class_resid_avg) <- c(0:11)
+
+rownames(tran_resid_avg) <- c(0:11)
+colnames(tran_resid_avg) <- c(0:11)
+
+tran_resid_avg.m <- melt(tran_resid_avg)
+class_resid_avg.m <- melt(class_resid_avg)
+
+ggplot(tran_resid_avg.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Residuals")
+
+ggplot(tran_resid_avg.m[which(tran_resid_avg.m$X1 %% 2 == 0),], aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Residuals")
+
+ggplot(tran_resid_avg.m[which(tran_resid_avg.m$X1 %% 2 == 0 & tran_resid_avg.m$X1 != 4),], aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Residuals")
+
+ggplot(class_resid_avg.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Classification Residuals")
+
+ggplot(class_resid_avg.m[which(class_resid_avg.m$X1 != 4),], aes(X2, X1)) +  
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Classification Residuals")
+```
+
+```{r}
+tran_resid_avg <- (tran_avg - tran_avg_true)
+
+rownames(tran_resid_avg) <- c(0:11)
+colnames(tran_resid_avg) <- c(0:11)
+
+tran_resid_avg.m <- melt(tran_resid_avg)
+
+for (i in 1:dim(tran_resid_avg.m)[1]){
+  tran_resid_avg.m$'names'[i] <- paste(toString(tran_resid_avg.m$X1[i]), toString(tran_resid_avg.m$X2[i]))
+}
+
+tran_resid_avg.m <- tran_resid_avg.m[order(tran_resid_avg.m$value),]
+tran_resid_avg.m$names <- factor(tran_resid_avg.m$names, levels = tran_resid_avg.m$names)
+
+ggplot(tran_resid_avg.m[which(abs(tran_resid_avg.m$value)  > .01),], aes(x = names, y = value, label = value)) + 
+  geom_bar(stat='identity', width = .8) + 
+  coord_flip() + 
+  theme_bw() + 
+  labs(y = "Residuals", x = "Initial/New States", title = "Transition Residuals")
+
+ggplot(tran_resid_avg.m[which(abs(tran_resid_avg.m$value)  > .01 & tran_resid_avg.m$X1%%2 == 0 & tran_resid_avg.m$X2 != 4 & tran_resid_avg.m$X1 != 4),], 
+       aes(x = names, y = value, label = value)) + 
+  geom_bar(stat='identity', width = .8) + 
+  coord_flip() + 
+  theme_bw() + 
+  labs(y = "Residuals", x = "Initial/New States", title = "Transition Residuals")
+```
+
+```{r}
+class_resid_avg <- class_avg - class_avg_true
+rownames(class_resid_avg) <- c(0:11)
+colnames(class_resid_avg) <- c(0:11)
+class_resid_avg.m <- melt(class_resid_avg)
+
+for (i in 1:dim(class_resid_avg.m)[1]){
+  class_resid_avg.m$'names'[i] <- paste(toString(class_resid_avg.m$X1[i]), toString(class_resid_avg.m$X2[i]))
+}
+
+class_resid_avg.m <- class_resid_avg.m[order(class_resid_avg.m$value),]
+class_resid_avg.m$names <- factor(class_resid_avg.m$names, levels = class_resid_avg.m$names)
+
+ggplot(class_resid_avg.m[which(abs(class_resid_avg.m$value)  > .01),], aes(x = names, y = value, label = value)) + 
+  geom_bar(stat='identity', width = .8) + 
+  coord_flip() + 
+  theme_bw() + 
+  labs(y = "Residuals", x = "True/Classifies State", title = "Classification Residuals")
+
+ggplot(class_resid_avg.m[which(abs(class_resid_avg.m$value)  > .01 & class_resid_avg.m$X2 != 4),], aes(x = names, y = value, label = value)) + 
+  geom_bar(stat='identity', width = .8) + 
+  coord_flip() + 
+  theme_bw() + 
+  labs(y = "Residuals", x = "True/Classifies State", title = "Classification Residuals")
+```
+
+```{r}
+hist(resid_class_array[5,1,])
+hist(resid_class_array[5,3,])
+hist(resid_class_array[11,9,])
+hist(resid_class_array[11,7,])
+
+hist(resid_class_array[4,6,])
+hist(resid_class_array[3,3,])
+hist(resid_class_array[6,6,])
+hist(resid_class_array[11,11,])
+```
+```{r}
+tran_var <- matrix(0,12,12)
+class_var <- matrix(0,12,12)
+
+rownames(tran_var) <- c(0:11)
+colnames(tran_var) <- c(0:11)
+rownames(class_var) <- c(0:11)
+colnames(class_var) <- c(0:11)
+
+
+for (i in 1:12){
+  for (j in 1:12){
+    class_var[i,j] <- var(resid_class_array[i,j,])
+    tran_var[i,j] <- var(resid_tran_array[i,j,])
+  }
+}
+
+tran_var.m <- melt(tran_var)
+
+ggplot(tran_var.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance")
+
+class_var.m <- melt(class_var)
+
+ggplot(class_var.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Classification Variance")
+```
+
+
+```{r}
+rownames(tran_avg) <- c(0:11)
+colnames(tran_avg) <- c(0:11)
+rownames(class_avg) <- c(0:11)
+colnames(class_avg) <- c(0:11)
+
+rownames(tran_avg_true) <- c(0:11)
+colnames(tran_avg_true) <- c(0:11)
+rownames(class_avg_true) <- c(0:11)
+colnames(class_avg_true) <- c(0:11)
+
+round(init_avg - init_avg_true,3)
+round(tran_avg - tran_avg_true,3)[c(1,3,5,7,9,11),]
+round(class_avg - class_avg_true,3)
+
+
+```
+
+```{r}
+GetMarginalProb(class_avg,1)
+GetMarginalProb(class_avg,2)
+GetMarginalProb(class_avg,3)
+```
+
+
+
+
+
+
