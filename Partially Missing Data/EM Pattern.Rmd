@@ -512,6 +512,10 @@ ClassificationFull <- function(x_vals,y_val,class_matrix){
   for(i in 1:count){
     return_val <- return_val + Classification(x_vals[i],y_val,class_matrix)
   }
+  
+  if (return_val == 0){
+    return(1)
+  }
   return(return_val)
 }
 ```
