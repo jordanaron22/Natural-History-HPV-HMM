@@ -187,7 +187,7 @@ numOfStates <- function(data,type){
 ```{r}
 init_hc <- c(.9,.099,.001)
 tran_hc <- t(matrix(c(.85,.1499,.0001,.1,.89,.01,0,0,1),3,3))
-class_hc <- t(matrix(c(.95,.05,0,.05,.95,0,0,.1,.9),3,3))
+class_hc <- t(matrix(c(.875,.125,0,.05,.95,0,0,.1,.9),3,3))
 ```
 
 ```{r}
@@ -226,7 +226,7 @@ GenerateObs <- function(data_true){
 ```
 
 ```{r}
-IntroNA <- function(data, obs){
+IntroNA <- function(data, obs, class){
 
   for (i in 1:dim(data)[1]){
     for (j in 1:dim(data)[2]){
@@ -234,22 +234,21 @@ IntroNA <- function(data, obs){
       if (!is.na(data[i,j])){
         if (obs == TRUE){
           if (rbinom(1,1,2/5) == 1){
-            #make the prob 3/5 instead of 1
-            if (rbinom(1,1,1) == 1){
+            if (rbinom(1,1,3/5) == 1){
               if (data[i,j] == 0){
-                if (runif(1) < .99){
+                if (runif(1) < (class[1,1] + class[1,2])){
                   data[i,j] <- 3
                 } else {
                   data[i,j] <- 4
                 }
               } else if (data[i,j] == 1){
-                if (runif(1) < .95) {
+                if (runif(1) < (class[2,1] + class[2,2])) {
                   data[i,j] <- 3
                 } else {
                   data[i,j] <- 5
                 }
               } else {
-                if (runif(1) < .99) {
+                if (runif(1) < (class[3,2] + class[3,3])) {
                   data[i,j] <- 5
                 } else {
                   data[i,j] <- 4
@@ -400,9 +399,9 @@ t <- 5
 data_true <- GenerateData(n,t)
 data_obs <- GenerateObs(data_true)
 
-data_obs_NA <- IntroNA(data_obs,T)
+data_obs_NA <- IntroNA(data_obs,T, class_hc)
 
-data_true_NA <- IntroNA(data_true,F)
+data_true_NA <- IntroNA(data_true,F, class_hc)
 
 # all_patterns <- GetPatterns(data_obs_NA)
 # unique_patterns <- as.data.frame(table(all_patterns))
@@ -464,6 +463,7 @@ GetAllPossibilitiesForw <- function(data, time, individual, only_one){
   
 }
 ```
+
 
 ```{r}
 #JASA paper method 
@@ -593,12 +593,10 @@ BackwardIterFull <- function(data,time,individual,transition,class_matrix){
 
 
 ```{r}
-CalcIndLikelihood <- function(data, individual, initial_probabilities,transition,class_matrix, only_one){
-  if (!missing(only_one)){
-    forward <- ForwardIterFull(data,dim(data)[2],individual,initial_probabilities,transition,class_matrix,T)
-  } else {
-    forward <- ForwardIterFull(data,dim(data)[2],individual,initial_probabilities,transition,class_matrix)
-  }
+CalcIndLikelihood <- function(data, individual, initial_probabilities,transition,class_matrix){
+  
+  forward <- ForwardIterFull(data,dim(data)[2],individual,initial_probabilities,transition,class_matrix)
+  
   forward_sum <- 0
   for (i in 1:length(forward)){
    forward_sum <- forward_sum + sum(forward[[i]][[dim(data)[2]]])
@@ -739,79 +737,55 @@ ClassificationRatio <- function(x_val,x_vals,y_val,class_matrix){
 ```
 
 ```{r}
-CalcClassificationPattern <- function(data, initial_probabilities, transition, class_matrix, freq_vec){
+CalcClassificationPattern <- function(data,init,tran,class){
   k <- numOfStates(data)
   num_matrix <- matrix(0L, nrow = length(k), ncol = length(k))
-
   
-  for (i in 1:dim(data)[1]){
-    individual_likelihood <- CalcIndLikelihood(pattern_data,i,init,tran,class)
-    all_possibilities <- GetAllPossibilitiesForw(data,5,i)
-    for(j in 1:dim(data)[2]){
+  for (ind in 1:dim(data)[1]){
+    individual_likelihood <- CalcIndLikelihood(data,ind,init,tran,class)
+    for(time in 1:dim(data)[2]){
       
-      forward <- ForwardIterFull(data,j,i,initial_probabilities, transition,class_matrix)
-      backward <- BackwardIterFull(data,j,i,transition,class_matrix)
-      x_vals <- unique(all_possibilities[j,])
+      forward <- ForwardIterFull(data,time,ind,init, tran,class)
+      backward <- BackwardIterFull(data,time,ind,tran,class)
+      beggining_backw <- GetAllPossibilitiesBackw(data,time,ind)
+      beggining_forw <- GetAllPossibilitiesForw(data,time,ind)
+      x_vals_backw <- unique(beggining_backw[1,])
+      x_vals_forw <- unique(beggining_forw[time,])
+      
       for (u in 1:length(forward)){
-        x_val <- all_possibilities[j,u]
+        x_val_forw <- beggining_forw[time,u]
         
         for (v in 1:length(backward)){
-          mover <- forward[[u]][[j]]*backward[[v]][[j]] / individual_likelihood
-          #mover <- mover * freq_vec[i]
+          x_val_backw <- beggining_backw[1,v]
           
-          for (y_state in 1:length(k)){
-            if (!is.na(x_val)){
-              if (!is.na(ClassificationRatio(x_val,x_vals,y_state - 1, class_matrix))){
-                mover[y_state] <- mover[y_state] * ClassificationRatio(x_val,x_vals,y_state - 1, class_matrix)
-              }
-
-             num_matrix[y_state,x_val + 1] <- num_matrix[y_state, x_val+1] + mover[y_state] 
+          x_vals <- x_vals_forw
+          x_val <- x_val_forw
+          if (!is.na(x_val)){
+            
+            mover <- forward[[u]][[time]]*backward[[v]][[time]] / individual_likelihood
+            
+            for (y_state in 1:length(k)){
+              mover[y_state] <- mover[y_state] * ClassificationRatio(x_val,x_vals,y_state - 1, class)
+              #mover[y_state] <- mover[y_state] * Classification(x_val,y_state - 1, class)
+              num_matrix[y_state,x_val + 1] <- num_matrix[y_state, x_val+1] + mover[y_state] 
             }
+            
           }
         }
       }
+      
     }
   }
-  
   return(Normalize(num_matrix))
 }
 ```
 
 ```{r}
-CalcClassificationPattern <- function(data, initial_probabilities, transition, class_matrix, freq_vec){
-  k <- numOfStates(data)
-  num_matrix <- matrix(0L, nrow = length(k), ncol = length(k))
-  
-  for (i in 1:dim(data)[1]){
-    forward <- ForwardIterFull(data,dim(data)[2],i,initial_probabilities, transition,class_matrix)
-    backward <- BackwardIterFull(data,1,i,transition,class_matrix)
-    individual_likelihood <- CalcIndLikelihoodFast(forward)
-    all_possibilities <- GetAllPossibilitiesForw(data,dim(data)[2],i)
-    
-    for(j in 1:dim(data)[2]){
-      x_vals <- unique(all_possibilities[j,])
-      for (u in 1:length(forward)){
-        x_val <- all_possibilities[j,u]
-        
-        for (v in 1:length(backward)){
-          mover <- forward[[u]][[j]]*backward[[v]][[j]] / individual_likelihood
-          probabilities <- mover * freq_vec[i]
-          
-          for (y_state in 1:length(k)){
-            if (!is.na(x_val)){
-              if (ClassificationFull(x_vals, (y_state-1), class) != 0){
-                probabilities[y_state] <- probabilities[y_state] * (Classification(x_val,(y_state-1),class) /ClassificationFull(x_vals, (y_state - 1), class)) 
-              }
-             num_matrix[y_state,x_val + 1] <- num_matrix[y_state, x_val+1] + probabilities[y_state] 
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  return(Normalize(num_matrix))
-}
+CalcClassificationPattern(pattern_data,init_true,tran_true,class_true)
+(class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class_true))
+(class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class))
+(class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class))
+(class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class))
 ```
 
 
@@ -821,34 +795,34 @@ CalcClassificationPattern <- function(data, initial_probabilities, transition, c
 # tran <- tran_true
 
 
-old_likelihood <- CalcLikelihoodPattern(pattern_data,init,tran,class_true,freq_vec)
-init <- CalcInitialPattern(pattern_data,init,tran,class_true,freq_vec)
-tran <- CalcTransitionPattern(pattern_data,init,tran,class_true,freq_vec)
-new_likelihood <- CalcLikelihoodPattern(pattern_data,init,tran,class_true,freq_vec)
-print(new_likelihood - old_likelihood)
-
-for(i in 1:100){
-  old_likelihood <- new_likelihood
-  init <- CalcInitialPattern(pattern_data,init,tran,class_true,freq_vec)
-  tran <- CalcTransitionPattern(pattern_data,init,tran,class_true,freq_vec)
-  new_likelihood <- CalcLikelihoodPattern(pattern_data,init,tran,class_true,freq_vec)
-  print(new_likelihood - old_likelihood)
-}
-
-
-
-# class <- class_true
-# old <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
-# class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class,freq_vec)
-# new <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
-# new - old
+# old_likelihood <- CalcLikelihoodPattern(pattern_data,init,tran,class_true,freq_vec)
+# init <- CalcInitialPattern(pattern_data,init,tran,class_true,freq_vec)
+# tran <- CalcTransitionPattern(pattern_data,init,tran,class_true,freq_vec)
+# new_likelihood <- CalcLikelihoodPattern(pattern_data,init,tran,class_true,freq_vec)
+# print(new_likelihood - old_likelihood)
 # 
-# for (i in 1:10){
-#   old <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
-#   class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class,freq_vec)
-#   new <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
-#   print(new - old)
+# for(i in 1:100){
+#   old_likelihood <- new_likelihood
+#   init <- CalcInitialPattern(pattern_data,init,tran,class_true,freq_vec)
+#   tran <- CalcTransitionPattern(pattern_data,init,tran,class_true,freq_vec)
+#   new_likelihood <- CalcLikelihoodPattern(pattern_data,init,tran,class_true,freq_vec)
+#   print(new_likelihood - old_likelihood)
 # }
+
+
+
+class <- class_true
+old <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
+class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class)
+new <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
+new - old
+
+for (i in 1:100){
+  old <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
+  class <- CalcClassificationPattern(pattern_data,init_true,tran_true,class)
+  new <- CalcLikelihoodPattern(pattern_data,init_true,tran_true,class,freq_vec)
+  print(new - old)
+}
 ```
 
 
