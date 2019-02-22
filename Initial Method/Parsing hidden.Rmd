@@ -1,0 +1,356 @@
+---
+title: "parsing hidden"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+Normalize <- function(data){
+  for (i in 1:dim(data)[1]){
+    if (sum(data[i,]) != 0){
+      data[i,] <- data[i,]/sum(data[i,])
+    }
+  }
+  return(data)
+}
+```
+
+```{r}
+StackedBar <-function(y, type){
+  library(ggplot2)
+  library(reshape)
+  colnames(y) <- c(0:11)
+  rownames(y) <- c(0:11)
+  
+  if (type == 1){
+    for (i in 1:dim(y)[1]){
+      if (i %% 2 == 0){
+        y[i,] <- 0
+      }
+    }
+  }
+
+  y <- t(y)
+  y <- as.data.frame(y)
+  y$ID <- rownames(y)
+  y.melt <- melt(y, id.var = 'ID')
+  y.melt <- within(y.melt, ID <- factor(ID, 
+      c('11','10','9','8','7','6','5','4','3','2','1','0'), 
+      ordered = TRUE))
+  ggplot(y.melt, aes(x = variable, y = value, fill = ID)) +
+      geom_bar(stat = 'identity') +
+      #coord_flip() + 
+      xlab(ifelse(type == 1,"Initial State","True State")) +
+      ylab(ifelse(type == 1,"Transition Probabilities","Classification Probabilities")) +
+      theme(legend.title=element_blank())
+}
+```
+
+```{r}
+GetMarginalProb <- function(data_matrix, type){
+  HPV <-  matrix(0L, nrow = 2, ncol = 2)
+  HPV[1,1] <- sum(data_matrix[1:6,1:6])
+  HPV[1,2] <- sum(data_matrix[1:6,7:12])
+  HPV[2,2] <- sum(data_matrix[7:12,7:12])
+  HPV[2,1] <- sum(data_matrix[7:12,1:6])
+  
+  Pap <-  matrix(0L, nrow = 3, ncol = 3)
+  Pap[1,1] <- sum(data_matrix[c(1,2,7,8),c(1,2,7,8)])
+  Pap[1,2] <- sum(data_matrix[c(1,2,7,8),c(3,4,9,10)])
+  Pap[1,3] <- sum(data_matrix[c(1,2,7,8),c(5,6,11,12)])
+  
+  Pap[2,1] <- sum(data_matrix[c(3,4,9,10),c(1,2,7,8)])
+  Pap[2,2] <- sum(data_matrix[c(3,4,9,10),c(3,4,9,10)])
+  Pap[2,3] <- sum(data_matrix[c(3,4,9,10),c(5,6,11,12)])
+  
+  Pap[3,1] <- sum(data_matrix[c(5,6,11,12),c(1,2,7,8)])
+  Pap[3,2] <- sum(data_matrix[c(5,6,11,12),c(3,4,9,10)])
+  Pap[3,3] <- sum(data_matrix[c(5,6,11,12),c(5,6,11,12)])
+  
+  Copa <-  matrix(0L, nrow = 2, ncol = 2)
+  Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+  Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+  Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+  Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+  
+  if (type == 1){
+    return(Normalize(HPV))
+  } else if (type == 2){
+    return(Normalize(Pap))
+  } else {
+    return(Normalize(Copa))
+  }
+
+}
+```
+
+```{r}
+setwd("absorbing/better class/full/2 parts/")
+list_of_names <- list.files()
+reps <- length(list_of_names)
+
+init_list <- vector("list", length = reps)
+tran_list <- vector("list", length = reps)
+class_list <- vector("list", length = reps)
+state_list <- vector("list", length = reps)
+state_list2 <- vector("list", length = reps)
+correct_class_list <- vector("list", length = reps)
+
+count <- 1
+for (name in list_of_names){
+  state_vec <- numeric(12)
+  state_vec2 <- numeric(12)
+  load(name)
+  
+  init_list[[count]] <- to_save[[1]]
+  tran_list[[count]] <- to_save[[2]]
+  class_list[[count]] <- to_save[[3]]
+  correct_class_list[[count]] <- diag(class_list[[count]])
+  
+  for (i in 1:dim(to_save[[4]])[1]){
+    for (j in 1:dim(to_save[[4]])[2]){
+      if (!is.na(to_save[[4]][i,j,1]) & is.na(to_save[[4]][i,j,2])){
+        state_vec[to_save[[4]][i,j,1]+1] <- state_vec[to_save[[4]][i,j,1]+1] + 1
+      }
+      for (k in 1:dim(to_save[[4]])[3]){
+        if (!is.na(to_save[[4]][i,j,k])){
+          state_vec2[to_save[[4]][i,j,k]+1] <- state_vec2[to_save[[4]][i,j,k]+1] + 1
+        }
+      }
+    }
+  }
+  state_list[[count]] <- state_vec
+  state_list2[[count]] <- state_vec2
+  
+  count <- count+1
+}
+```
+
+```{r}
+init_avg <- numeric(12)
+var_tran <- matrix(0,12,12)
+class_avg <- matrix(0,12,12)
+state_avg <- numeric(12)
+state_avg2 <- numeric(12)
+full_tran_array <- array(0,dim = c(12,12,reps))
+full_class_array <- array(0,dim = c(12,12,reps))
+
+for (k in 1:reps){
+
+  init_avg <- init_avg + init_list[[k]]
+  var_tran <- var_tran + tran_list[[k]]
+  class_avg <- class_avg + class_list[[k]]
+  state_avg <- state_avg + state_list[[k]]
+  state_avg2 <- state_avg2 + state_list2[[k]]
+
+  
+  for (i in 1:12){
+    for (j in 1:12){
+      full_tran_array[i,j,k] <- tran_list[[k]][i,j]
+      full_class_array[i,j,k] <- class_list[[k]][i,j]
+    }
+  }
+
+}
+
+init_avg <- init_avg/reps
+tran_avg <- Normalize(tran_avg/reps)
+class_avg <- Normalize(class_avg/reps)
+state_avg <- state_avg/reps
+state_avg2 <- state_avg2/reps
+
+library(gmodels)
+correct_class <- numeric(12)
+for (i in 1:12){
+  correct_class[i] <- class_avg[i,i]
+}
+
+correct_mat <- matrix(0,nrow = length(correct_class_list), ncol = 12)
+
+
+for (i in 1:length(correct_class_list)){
+  for (j in 1:length(correct_class_list[[i]])){
+    correct_mat[i,j] <- correct_class_list[[i]][j]
+  }
+}
+
+lower <- numeric(12)
+upper <- numeric(12)
+
+for (i in 1:12){
+  conf <- ci(correct_mat[,i])
+  upper[i] <- conf[3] - conf[1]
+  lower[i] <- conf[2] - conf[1]
+}
+
+var_class <- matrix(0,12,12)
+var_tran <- matrix(0,12,12)
+
+for (i in 1:12){
+  for (j in 1:12){
+    var_class[i,j] <- var(full_class_array[i,j,])
+    var_tran[i,j] <- var(full_tran_array[i,j,])
+  }
+}
+
+```
+
+
+```{r}
+rownames(tran_avg) <- c(0:11)
+colnames(tran_avg) <- c(0:11)
+rownames(class_avg) <- c(0:11)
+colnames(class_avg) <- c(0:11)
+
+round(init_avg,3)
+round(tran_avg,3)[c(1,3,5,7,9,11),]
+round(class_avg,3)
+```
+
+```{r}
+GetMarginalProb(tran_avg,1)
+GetMarginalProb(tran_avg,2)
+GetMarginalProb(tran_avg,3)
+```
+
+```{r}
+GetMarginalProb(class_avg,1)
+GetMarginalProb(class_avg,2)
+GetMarginalProb(class_avg,3)
+```
+
+```{r}
+#state1 <- data.frame(states = c(0:11), count = state_avg)
+state2 <- data.frame(states = c(0:11),count = state_avg2, prob = init_avg)
+library(ggplot2)
+
+
+ggplot(state2, aes(states,count)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Counts") + ggtitle("Frequency of Imputed Seen States") + 
+  theme_bw() + ylim(0,1250) + 
+  geom_text(aes(label=round(state_avg2/sum(state_avg2),3)), vjust=-1) 
+
+
+
+
+ggplot(state2, aes(states,prob)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Probability") + ggtitle("Initial Probabilities") + 
+  theme_bw() + ylim(0,.7) + 
+  #geom_text(aes(label=round(init_avg,3)), vjust=-1) 
+  geom_text(aes(label=round(state_avg2/sum(state_avg2),3)), vjust=-1) 
+
+
+StackedBar(tran_avg,1)
+StackedBar(class_avg,2)
+
+
+```
+
+```{r}
+library(grid)
+library(gridExtra)
+library(egg)
+
+plot_top <- ggplot(state2, aes(states,count)) + 
+  geom_bar(stat = "identity") + ylab("# of Times Visited") + 
+  theme_bw() + 
+  theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank()) +  
+  theme(plot.margin = unit(c(1,5,-10,6),units="points"),axis.title.y = element_text(vjust =0.3)) +
+  ylim(0,1500) + 
+  geom_text(aes(label=round(state_avg2/sum(state_avg2),3)), vjust=-.2) 
+
+plot_bottom <- ggplot(init, aes(states,prob)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Initial Probability") +
+  theme_bw() + ylim(0,.75) + 
+  geom_text(aes(label=round(init_avg,3)), vjust=-1) 
+
+ggarrange(plot_top,plot_bottom,ncol = 1, heights = c(1/3,2/3))
+
+plot_top <- ggplot(state2, aes(states,count)) + 
+  geom_bar(stat = "identity", width = .9) + ylab("# of Times Visited") + 
+  theme_bw() + 
+  ylim(0,1500) + 
+  theme(axis.title.x=element_blank()) + 
+  geom_text(aes(label=round(state_avg2/sum(state_avg2),3)), vjust=-.2) 
+
+plot_bottom <- StackedBar(tran_avg,1)
+ggarrange(plot_top,plot_bottom,ncol = 1, heights = c(1/3,2/3))
+
+plot_bottom <- StackedBar(class_avg,2)
+ggarrange(plot_top,plot_bottom,ncol = 1, heights = c(1/3,2/3))
+
+```
+
+
+
+```{r}
+rownames(class_avg) <- c(0:11)
+colnames(class_avg) <- c(0:11)
+
+rownames(tran_avg) <- c(0:11)
+colnames(tran_avg) <- c(0:11)
+
+class_avg.m <- melt(class_avg)
+tran_avg.m <- melt(tran_avg)
+
+ggplot(tran_avg.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition")
+
+ggplot(class_avg.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification")
+```
+
+```{r}
+class_df <- data.frame(states = c(0:11), correct = correct_class, up_lim  = upper, lw_lim = lower)
+
+ggplot(class_df,aes(y = correct,x = states)) + 
+  geom_bar(stat="identity") + 
+  geom_errorbar(aes(ymin=correct + lw_lim, ymax=correct + up_lim)) + 
+  xlab("State") + ylab("Classification Percent") + ggtitle("Corect Classification")
+```
+
+```{r}
+
+rownames(var_class) <- c(0:11)
+colnames(var_class) <- c(0:11)
+
+rownames(var_tran) <- c(0:11)
+colnames(var_tran) <- c(0:11)
+
+var_class.m <- melt(var_class)
+var_tran.m <- melt(var_tran)
+
+ggplot(var_tran.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance")
+
+ggplot(var_class.m, aes(X2, X1)) + 
+  geom_tile(aes(fill = value),color = "black") + 
+  scale_fill_gradient2(low = "blue",high = "red") + 
+  scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification Variance")
+```
+
+```{r}
+library(ggcorrplot)
+class_corr <- round(cor(class_avg),1)
+ggcorrplot(class_corr, hc.order = TRUE, type = "lower", lab = TRUE, lab_size = 3, method="circle", 
+           colors = c("tomato2", "white", "springgreen3"), title="Correlogram of Classification Probabilities", ggtheme=theme_bw)
+
+tran_corr <- round(cor(tran_avg),1)
+ggcorrplot(tran_corr, hc.order = TRUE, type = "lower", lab = TRUE, lab_size = 3, method="circle", 
+           colors = c("tomato2", "white", "springgreen3"), title="Correlogram of Transition Probabilities", ggtheme=theme_bw)
+```
+
+

@@ -1,0 +1,1176 @@
+---
+title: "Breakdown by BMI"
+output: html_document
+fig_width: 8
+fig_height: 8 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+setwd("BMI")
+load("BMI.RData")
+state_labels <- c("HPV Negative\nCyt Negative\nHist Negative","HPV Negative\nCyt Negative\nHist Positive", "HPV Negative\nCyt Equivocal\nHist Negative","HPV Negative\nCyt Equivocal\nHist Positive","HPV Negative\nCyt Positive\nHist Negative","HPV Negative\nCyt Positive\nHist Positive","HPV Positive\nCyt Negative\nHist Negative","HPV Positive\nCyt Negative\nHist Positive", "HPV Positive\nCyt Equivocal\nHist Negative","HPV Positive\nCyt Equivocal\nHist Positive","HPV Positive\nCyt Positive\nHist Negative","HPV Positive\nCyt Positive\nHist Positive" )
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+Normalize <- function(data){
+  for (i in 1:dim(data)[1]){
+    if (sum(data[i,]) != 0){
+      data[i,] <- data[i,]/sum(data[i,])
+    }
+  }
+  return(data)
+}
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+StackedBar <-function(y, type){
+  library(ggplot2)
+  library(reshape)
+  colnames(y) <- c(0:11)
+  rownames(y) <- c(0:11)
+  
+  if (type == 1){
+    for (i in 1:dim(y)[1]){
+      if (i %% 2 == 0){
+        y[i,] <- 0
+      }
+    }
+  }
+
+  y <- t(y)
+  y <- as.data.frame(y)
+  y$ID <- rownames(y)
+  y.melt <- melt(y, id.var = 'ID')
+  y.melt <- within(y.melt, ID <- factor(ID, c('11','10','9','8','7','6','5','4','3','2','1','0'), ordered = TRUE))
+  ggplot(y.melt, aes(x = variable, y = value, fill = ID)) +
+      geom_bar(stat = 'identity') +
+      #coord_flip() + 
+      xlab(ifelse(type == 1,"Initial State","True State")) +
+      ylab(ifelse(type == 1,"Transition Probabilities","Classification Probabilities")) +
+      theme(legend.title=element_blank())
+}
+```
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+# setwd("BMI/Under/")
+# list_of_names <- list.files()
+# reps <- length(list_of_names)
+# 
+# init_list <- vector("list", length = reps)
+# tran_list <- vector("list", length = reps)
+# class_list <- vector("list", length = reps)
+# state_list <- vector("list", length = reps)
+# state_list2 <- vector("list", length = reps)
+# correct_class_list <- vector("list", length = reps)
+# 
+# count <- 1
+# for (name in list_of_names){
+#   state_vec <- numeric(12)
+#   state_vec2 <- numeric(12)
+#   load(name)
+#   
+#   init_list[[count]] <- to_save[[1]]
+#   tran_list[[count]] <- to_save[[2]]
+#   class_list[[count]] <- to_save[[3]]
+#   correct_class_list[[count]] <- diag(class_list[[count]])
+#   
+#   for (i in 1:dim(to_save[[4]])[1]){
+#     for (j in 1:dim(to_save[[4]])[2]){
+#       if (!is.na(to_save[[4]][i,j,1]) & is.na(to_save[[4]][i,j,2])){
+#         state_vec[to_save[[4]][i,j,1]+1] <- state_vec[to_save[[4]][i,j,1]+1] + 1
+#       }
+#       for (k in 1:dim(to_save[[4]])[3]){
+#         if (!is.na(to_save[[4]][i,j,k])){
+#           state_vec2[to_save[[4]][i,j,k]+1] <- state_vec2[to_save[[4]][i,j,k]+1] + 1
+#         }
+#       }
+#     }
+#   }
+#   state_list[[count]] <- state_vec
+#   state_list2[[count]] <- state_vec2
+#   
+#   count <- count+1
+# }
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+# init_avg <- numeric(12)
+# tran_avg <- matrix(0,12,12)
+# class_avg <- matrix(0,12,12)
+# state_avg <- numeric(12)
+# state_avg2 <- numeric(12)
+# tran_array <- array(0,dim = c(12,12,reps))
+# class_array <- array(0,dim = c(12,12,reps))
+# 
+# for (i in 1:reps){
+# 
+#   init_avg <- init_avg + init_list[[i]]
+#   tran_avg <- tran_avg + tran_list[[i]]
+#   class_avg <- class_avg + class_list[[i]]
+#   state_avg <- state_avg + state_list[[i]]
+#   state_avg2 <- state_avg2 + state_list2[[i]]
+# 
+# 
+#   for (k in 1:12){
+#     for (j in 1:12){
+#       tran_array[k,j,i] <- tran_list[[i]][k,j]
+#       class_array[k,j,i] <- class_list[[i]][k,j]
+#     }
+#   }
+# }
+# 
+# tran_var <- matrix(0,12,12)
+# class_var <- matrix(0,12,12)
+# 
+# for (i in 1:12){
+#   for (j in 1:12){
+#     tran_var[i,j] <- var(tran_array[i,j,])
+#     class_var[i,j] <- var(class_array[i,j,])
+#   }
+# }
+# 
+# 
+# init_avg <- init_avg/reps
+# tran_avg <- Normalize(tran_avg/reps)
+# class_avg <- Normalize(class_avg/reps)
+# state_avg <- state_avg/reps
+# state_avg2 <- state_avg2/reps
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+# Un_tran <- tran_avg
+# Un_class <- class_avg
+# Un_init <- init_avg
+# Un_state1 <- state_avg
+# Un_state2 <- state_avg2
+# Un_correct_class <- correct_class_list
+# Un_tran_array <- tran_array
+# Un_class_array <- class_array
+# Un_tran_var <- tran_var
+# Un_class_var <- class_var
+
+# ExOb_tran <- tran_avg
+# ExOb_class <- class_avg
+# ExOb_init <- init_avg
+# ExOb_state1 <- state_avg
+# ExOb_state2 <- state_avg2
+# ExOb_correct_class <- correct_class_list
+# ExOb_tran_array <- tran_array
+# ExOb_class_array <- class_array
+# ExOb_tran_var <- tran_var
+# ExOb_class_var <- class_var
+
+# Heal_tran <- tran_avg
+# Heal_class <- class_avg
+# Heal_init <- init_avg
+# Heal_state1 <- state_avg
+# Heal_state2 <- state_avg2
+# Heal_correct_class <- correct_class_list
+# Heal_tran_array <- tran_array
+# Heal_class_array <- class_array
+# Heal_tran_var <- tran_var
+# Heal_class_var <- class_var
+
+# Ob_tran <- tran_avg
+# Ob_class <- class_avg
+# Ob_init <- init_avg
+# Ob_state1 <- state_avg
+# Ob_state2 <- state_avg2
+# Ob_correct_class <- correct_class_list
+# Ob_tran_array <- tran_array
+# Ob_class_array <- class_array
+# Ob_tran_var <- tran_var
+# Ob_class_var <- class_var
+
+# Ov_tran <- tran_avg
+# Ov_class <- class_avg
+# Ov_init <- init_avg
+# Ov_state1 <- state_avg
+# Ov_state2 <- state_avg2
+# Ov_correct_class <- correct_class_list
+# Ov_tran_array <- tran_array
+# Ov_class_array <- class_array
+# Ov_tran_var <- tran_var
+# Ov_class_var <- class_var
+```
+
+```{r, echo = FALSE, message= FALSE, include = FALSE}
+library(gmodels)
+ExOb_correct <- numeric(12)
+Heal_correct <- numeric(12)
+Ob_correct <- numeric(12)
+Ov_correct <- numeric(12)
+Un_correct <- numeric(12)
+for (i in 1:12){
+  ExOb_correct[i] <- ExOb_class[i,i]
+  Heal_correct[i] <- Heal_class[i,i]
+  Ob_correct[i] <- Ob_class[i,i]
+  Ov_correct[i] <- Ov_class[i,i]
+  Un_correct[i] <- Un_class[i,i]
+}
+
+ExOb_mat <- matrix(0,nrow = length(ExOb_correct_class), ncol = 12)
+Heal_mat <- matrix(0,nrow = length(Heal_correct_class), ncol = 12)
+Ob_mat <- matrix(0,nrow = length(Ob_correct_class), ncol = 12)
+Ov_mat <- matrix(0,nrow = length(Ov_correct_class), ncol = 12)
+Un_mat <- matrix(0,nrow = length(Un_correct_class), ncol = 12)
+
+for (i in 1:length(ExOb_correct_class)){
+  for (j in 1:length(ExOb_correct_class[[i]])){
+    ExOb_mat[i,j] <- ExOb_correct_class[[i]][j]
+  }
+}
+for (i in 1:length(Heal_correct_class)){
+  for (j in 1:length(Heal_correct_class[[i]])){
+    Heal_mat[i,j] <- Heal_correct_class[[i]][j]
+  }
+}
+for (i in 1:length(Ob_correct_class)){
+  for (j in 1:length(Ob_correct_class[[i]])){
+    Ob_mat[i,j] <- Ob_correct_class[[i]][j]
+  }
+}
+for (i in 1:length(Ov_correct_class)){
+  for (j in 1:length(Ov_correct_class[[i]])){
+    Ov_mat[i,j] <- Ov_correct_class[[i]][j]
+  }
+}
+for (i in 1:length(Un_correct_class)){
+  for (j in 1:length(Un_correct_class[[i]])){
+    Un_mat[i,j] <- Un_correct_class[[i]][j]
+  }
+}   
+
+ExOb_up <- numeric(12)
+ExOb_lw <- numeric(12)
+Heal_up <- numeric(12)
+Heal_lw <- numeric(12)
+Ob_up <- numeric(12)
+Ob_lw <- numeric(12)
+Ov_up <- numeric(12)
+Ov_lw <- numeric(12)
+Un_up <- numeric(12)
+Un_lw <- numeric(12)
+
+for (i in 1:12){
+  conf <- ci(ExOb_mat[,i])
+  ExOb_up[i] <- conf[3] - conf[1]
+  ExOb_lw[i] <- conf[2] - conf[1]
+  
+  conf <- ci(Heal_mat[,i])
+  Heal_up[i] <- conf[3] - conf[1]
+  Heal_lw[i] <- conf[2] - conf[1]
+  
+  conf <- ci(Ob_mat[,i])
+  Ob_up[i] <- conf[3] - conf[1]
+  Ob_lw[i] <- conf[2] - conf[1]
+  
+  conf <- ci(Ov_mat[,i])
+  Ov_up[i] <- conf[3] - conf[1]
+  Ov_lw[i] <- conf[2] - conf[1]
+  
+  conf <- ci(Un_mat[,i])
+  Un_up[i] <- conf[3] - conf[1]
+  Un_lw[i] <- conf[2] - conf[1]
+  
+  
+}
+
+
+
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+class_df <- data.frame(BMI = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"), counts = c(1851, 64529, 33857, 23916, 4901))
+library(ggplot2)
+class_df$BMI <- factor (class_df$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+ggplot(class_df, aes(BMI, counts)) + 
+  geom_bar(stat = "identity") + 
+  geom_text(aes(label = round(counts/sum(counts),3) ), vjust = -.5) + ylim(0,66000) + 
+  labs(x = "BMI", y = "Counts", title = "Frequency of BMI Classification", subtitle = "How often each BMI category appears in the data", caption = "The bar represents counts and the number represents the frequency of each state") + 
+  theme(plot.title = element_text(hjust = 0))
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+max_state <- max(Un_state2, Heal_state2,Ov_state2,Ob_state2,ExOb_state2) + 100
+StateFreqBar <- function(counts, max_state){
+  state2 <- data.frame(states = state_labels,count = counts)
+  state2$states <- factor (state2$states, levels = rev(state_labels))
+  ggplot(state2, aes(states,count)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Counts") +  
+  theme_bw() + ylim(0,max_state) +
+  geom_text(aes(label=round(count/sum(count),3)), vjust=0, hjust = -.2) +
+  theme(axis.text.x = element_text(vjust = .5 ), axis.text.y = element_text(size = 10)) +  
+  labs(caption = "The bar represents counts and the number represents the frequency of each state") + 
+  coord_flip() 
+}
+
+StateFreqBar(Un_state2,max_state) + ggtitle("Frequency of States Seen (Underweight)") + labs(subtitle = "How often each state appears in the underweight BMI category")
+StateFreqBar(Heal_state2,max_state) + ggtitle("Frequency of States Seen (Healthy)") + labs(subtitle = "How often each state appears in the healthy BMI category")
+StateFreqBar(Ov_state2,max_state) + ggtitle("Frequency of States Seen (Overweight)") + labs(subtitle = "How often each state appears in the overweight BMI category")
+StateFreqBar(Ob_state2,max_state) + ggtitle("Frequency of States Seen (Obese)") + labs(subtitle = "How often each state appears in the obese BMI category")
+StateFreqBar(ExOb_state2,max_state) + ggtitle("Frequency of States Seen (Extremely Obese)") + labs(subtitle = "How often each state appears in the extremely obese BMI category")
+
+
+```
+
+
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+BMI_df <- data.frame(states = rep(state_labels,5), BMI = c(rep("Underweight",12),rep("Healthy",12),rep("Overweight",12),rep("Obese",12),rep("Extremely Obese",12)), state_vals = c(Un_state2,Heal_state2,Ov_state2,Ob_state2,ExOb_state2))
+
+BMI_df$BMI <- factor (BMI_df$BMI, levels = rev(c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese")))
+BMI_df$states <- factor(BMI_df$states, levels = rev(state_labels))
+
+ggplot(BMI_df,aes(fill = BMI, y = state_vals,x = states)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  labs(x = "States", y = "Counts", title = "Observed States", subtitle = "How often each state appears for all of the BMI categories") + 
+  coord_flip() + 
+  guides(fill = guide_legend(reverse=TRUE)) + 
+  theme(plot.title = element_text(hjust = 0))
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+library(ggplot2)
+
+
+
+init <- data.frame(states = state_labels,Un_prob = Un_init, Heal_prob = Heal_init, Ov_prob = Ov_init, Ob_prob = Ob_init, ExOb_prob = ExOb_init)
+init$states <- factor(init$states, levels = rev(state_labels))
+
+InitProbBar <- function(X_prob){
+  init <- data.frame(states = state_labels,Un_prob = Un_init, Heal_prob = Heal_init, Ov_prob = Ov_init, Ob_prob = Ob_init, ExOb_prob = ExOb_init)
+  init$states <- factor(init$states, levels = rev(state_labels))
+  ggplot(init, aes(states,X_prob)) + 
+  geom_bar(stat = "identity") + 
+  xlab("State") + ylab("Probability") + 
+  theme_bw() + ylim(0,.8) +
+  geom_text(aes(label=round(X_prob/sum(X_prob),3)), vjust=0, hjust = -.2) +
+  theme(axis.text.x = element_text(vjust = .5 ), axis.text.y = element_text(size = 10))  + 
+  theme(plot.title = element_text(hjust = 0)) + 
+  labs(caption = "The bar represents counts and the number represents the frequency of each state") + 
+  coord_flip()
+}
+
+
+InitProbBar(Un_init) + ggtitle("Initial Probability (Underweight)") + labs(subtitle = "What is the probability of starting in each state for the Underweight category")
+InitProbBar(Heal_init) + ggtitle("Initial Probability (Healthy)") + labs(subtitle = "What is the probability of starting in each state for the Healthy category")
+InitProbBar(Ov_init) + ggtitle("Initial Probability (Overweight)") + labs(subtitle = "What is the probability of starting in each state for the Overweight category")
+InitProbBar(Ob_init) + ggtitle("Initial Probability (Obese)") + labs(subtitle = "What is the probability of starting in each state for the Obese category")
+InitProbBar(ExOb_init) + ggtitle("Initial Probability (Extremely Obese)") + labs(subtitle = "What is the probability of starting in each state for the Extremely Obese category")
+
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+BMI_df <- data.frame(states = rep(state_labels,5), BMI = c(rep("Underweight",12),rep("Healthy",12),rep("Overweight",12),rep("Obese",12),rep("Extremely Obese",12)), init = c(Un_init, Heal_init, Ov_init, Ob_init, ExOb_init))
+
+BMI_df$BMI <- factor (BMI_df$BMI, levels = rev(c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese")))
+BMI_df$states <- factor(BMI_df$states, levels = rev(state_labels))
+ggplot(BMI_df,aes(fill = BMI, y = init,x = states)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  labs(x = "States", y = "Probability", title = "Initial Probability") + 
+  theme_bw() + coord_flip() + 
+  guides(fill = guide_legend(reverse=TRUE))
+
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8, message = FALSE}
+StackedTranBar <- function(X_tran){
+  library(reshape)
+  rownames(X_tran) <- c(state_labels)
+  colnames(X_tran) <- c(state_labels)
+  X_tran.m <- melt(X_tran) 
+  toDelete <- seq(1, nrow(X_tran.m), 2)
+  X_tran.m <- X_tran.m[toDelete,]
+  X_tran.m$X1 <- factor(X_tran.m$X1, levels = (state_labels))
+  X_tran.m$X2 <- factor(X_tran.m$X2, levels = rev(state_labels))
+  ggplot(X_tran.m,aes(x = X1, y = X_tran.m$value,fill = X_tran.m$X2)) + 
+    geom_bar(stat="identity") + 
+    xlab("Initial State") + ylab("Probability") + 
+    labs(fill = "New State", caption = "Blue/Red = HPV negative/Positive. Lighter shades of blue/red = higher grade of cytology.  Gradients of gray = CIN2+") + 
+    theme_bw() + 
+    theme(plot.caption = element_text(hjust = .5)) +
+    scale_fill_manual(values=c("gray0", "coral1", "gray30", "brown1", "gray45", "brown4", "gray60", "deepskyblue", "gray75", "dodgerblue1", "gray90", "dodgerblue4")) 
+}
+
+StackedTranBar(Un_tran) + ggtitle("Transition Probabilities (Underweight)") + labs(subtitle = "The probability of transitioning from a non-CIN2+ state (x-axis) to all other states (y-axis)")
+StackedTranBar(Heal_tran) + ggtitle("Transition Probabilities (Healthy)") + labs(subtitle = "The probability of transitioning from a non-CIN2+ state (x-axis) to all other states (y-axis)")
+StackedTranBar(Ov_tran) + ggtitle("Transition Probabilities (Overweight)") + labs(subtitle = "The probability of transitioning from a non-CIN2+ state (x-axis) to all other states (y-axis)")
+StackedTranBar(Ob_tran) + ggtitle("Transition Probabilities (Obese)") + labs(subtitle = "The probability of transitioning from a non-CIN2+ state (x-axis) to all other states (y-axis)")
+StackedTranBar(ExOb_tran) + ggtitle("Transition Probabilities (Extremely Obese)") + labs(subtitle = "The probability of transitioning from a non-CIN2+ state (x-axis) to all other states (y-axis)")
+```
+
+```{r, echo = FALSE, fig.width=5, fig.height=5}
+StackedTranBarState <- function(state){
+  library(reshape)
+  library(ggplot2)
+  
+  rownames(Un_tran) <- c(0:11)
+  colnames(Un_tran) <- c(state_labels)
+  Un_tran.m <- melt(Un_tran)
+  
+  rownames(Heal_tran) <- c(0:11)
+  colnames(Heal_tran) <- c(state_labels)
+  Heal_tran.m <- melt(Heal_tran)
+  
+  rownames(Ov_tran) <- c(0:11)
+  colnames(Ov_tran) <- c(state_labels)
+  Ov_tran.m <- melt(Ov_tran)
+  
+  rownames(Ob_tran) <- c(0:11)
+  colnames(Ob_tran) <- c(state_labels)
+  Ob_tran.m <- melt(Ob_tran)
+  
+  rownames(ExOb_tran) <- c(0:11)
+  colnames(ExOb_tran) <- c(state_labels)
+  ExOb_tran.m <- melt(ExOb_tran)
+  
+  
+  
+  BMI_df <- data.frame(BMI = c(rep("Underweight",144),rep("Healthy",144),rep("Overweight",144),rep("Obese",144),rep("Extremely Obese",144)), initial_states = c(rep(ExOb_tran.m$X1,5)), new_states = Un_tran.m$X2, transition = c(Un_tran.m$value,Heal_tran.m$value,Ov_tran.m$value,Ob_tran.m$value,ExOb_tran.m$value))
+  
+  BMI_df$BMI <- factor(BMI_df$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+  BMI_df$initial_states <- factor(BMI_df$initial_states, levels = c(0,1,2,3,4,5,6,7,8,9,10,11))
+  BMI_df$new_states <- factor(BMI_df$new_states, levels = rev(state_labels))
+  
+  BMI_df <- with(BMI_df, BMI_df[order(BMI, initial_states, rev(new_states)),])
+  
+    
+  ggplot(BMI_df[which(BMI_df$initial_states == state),], aes(x = BMI, y = transition, fill = new_states)) +
+    geom_bar(stat="identity") +
+    xlab("Initial State") + ylab("Probability") +
+    labs(fill = "New State", caption = "Blue/Red = HPV negative/Positive. Lighter shades of blue/red = higher grade of cytology.  Gradients of gray = CIN2+") +
+    theme_bw() +
+    theme(plot.caption = element_text(hjust = .5)) +
+    scale_fill_manual(values=c("gray0", "coral1", "gray30", "brown1", "gray45", "brown4", "gray60", "deepskyblue", "gray75", "dodgerblue1", "gray90", "dodgerblue4")) +
+     ggtitle("Transition Probabilities by BMI Category")
+}
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+StackedTranBarState(0) + xlab("Initial State = (HPV Negative, Cytology Negative, Histology Negative)") +
+    labs(subtitle = "The probability of transitioning away from HPV Negative, Cytology Negative, Histology Negative")
+
+StackedTranBarState(2) + xlab("Initial State = (HPV Negative, Cytology Equivocal, Histology Negative)") +
+    labs(subtitle = "The probability of transitioning away from HPV Negative, Cytology Equivocal, Histology Negative")
+
+StackedTranBarState(4) + xlab("Initial State = (HPV Negative, Cytology Positive, Histology Negative)") +
+    labs(subtitle = "The probability of transitioning away from HPV Negative, Cytology Positive, Histology Negative")
+
+StackedTranBarState(6) + xlab("Initial State = (HPV Positive, Cytology Negative, Histology Negative)") +
+    labs(subtitle = "The probability of transitioning away from HPV Positive, Cytology Negative, Histology Negative")
+
+StackedTranBarState(8) + xlab("Initial State = (HPV Positive, Cytology Equivocal, Histology Negative)") +
+    labs(subtitle = "The probability of transitioning away from HPV Positive, Cytology Equivocal, Histology Negative")
+
+StackedTranBarState(10) + xlab("Initial State = (HPV Positive, Cytology Positive, Histology Negative)") +
+    labs(subtitle = "The probability of transitioning away from HPV Positive, Cytology Positive, Histology Negative")
+```
+
+```{r, echo = FALSE, fig.width=5, fig.height=5}
+StackedTranBarStateMarg <- function(type,state, type1){
+  library(reshape)
+  library(ggplot2)
+  if (type1 == 1){
+    GetMarginalProb <- function(data_matrix, type){
+      HPV <-  matrix(0L, nrow = 2, ncol = 2)
+      HPV[1,1] <- sum(data_matrix[1:6,1:6])
+      HPV[1,2] <- sum(data_matrix[1:6,7:12])
+      HPV[2,2] <- sum(data_matrix[7:12,7:12])
+      HPV[2,1] <- sum(data_matrix[7:12,1:6])
+      
+      Pap <-  matrix(0L, nrow = 3, ncol = 3)
+      Pap[1,1] <- sum(data_matrix[c(1,2,7,8),c(1,2,7,8)])
+      Pap[1,2] <- sum(data_matrix[c(1,2,7,8),c(3,4,9,10)])
+      Pap[1,3] <- sum(data_matrix[c(1,2,7,8),c(5,6,11,12)])
+      
+      Pap[2,1] <- sum(data_matrix[c(3,4,9,10),c(1,2,7,8)])
+      Pap[2,2] <- sum(data_matrix[c(3,4,9,10),c(3,4,9,10)])
+      Pap[2,3] <- sum(data_matrix[c(3,4,9,10),c(5,6,11,12)])
+      
+      Pap[3,1] <- sum(data_matrix[c(5,6,11,12),c(1,2,7,8)])
+      Pap[3,2] <- sum(data_matrix[c(5,6,11,12),c(3,4,9,10)])
+      Pap[3,3] <- sum(data_matrix[c(5,6,11,12),c(5,6,11,12)])
+      
+      Copa <-  matrix(0L, nrow = 2, ncol = 2)
+      Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+      Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+      Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+      Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+      
+      if (type == 1){
+        return(Normalize(HPV))
+      } else if (type == 2){
+        return(Normalize(Pap))
+      } else {
+        return(Normalize(Copa))
+      }
+    
+    }
+  } else {
+    GetMarginalProb <- function(data_matrix, type){
+      HPV <-  matrix(0L, nrow = 2, ncol = 2)
+      HPV[1,1] <- sum(data_matrix[c(1,3,5),c(1,3,5)])
+      HPV[1,2] <- sum(data_matrix[c(1,3,5),c(7,9,11)])
+      HPV[2,2] <- sum(data_matrix[c(7,9,11),c(7,9,11)])
+      HPV[2,1] <- sum(data_matrix[c(7,9,11),c(1,3,5)])
+      
+      Pap <-  matrix(0L, nrow = 3, ncol = 3)
+      Pap[1,1] <- sum(data_matrix[c(1,7),c(1,7)])
+      Pap[1,2] <- sum(data_matrix[c(1,7),c(3,9)])
+      Pap[1,3] <- sum(data_matrix[c(1,7),c(5,11)])
+      
+      Pap[2,1] <- sum(data_matrix[c(3,9),c(1,2,7,8)])
+      Pap[2,2] <- sum(data_matrix[c(3,9),c(3,4,9,10)])
+      Pap[2,3] <- sum(data_matrix[c(3,9),c(5,11)])
+      
+      Pap[3,1] <- sum(data_matrix[c(5,11),c(1,7)])
+      Pap[3,2] <- sum(data_matrix[c(5,11),c(3,9)])
+      Pap[3,3] <- sum(data_matrix[c(5,11),c(5,11)])
+      
+      Copa <-  matrix(0L, nrow = 2, ncol = 2)
+      Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+      Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+      Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+      Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+      
+      if (type == 1){
+        return(Normalize(HPV))
+      } else if (type == 2){
+        return(Normalize(Pap))
+      } else {
+        return(Normalize(Copa))
+      }
+    
+    }  
+    
+  }
+  rownames(Un_tran) <- c(0:11)
+  colnames(Un_tran) <- c(state_labels)
+  Un_tran_HPV.m <- melt(GetMarginalProb(Un_tran,1))
+  Un_tran_Pap.m <- melt(GetMarginalProb(Un_tran,2))
+  Un_tran_Copa.m <- melt(GetMarginalProb(Un_tran,3))
+  
+  rownames(Heal_tran) <- c(0:11)
+  colnames(Heal_tran) <- c(state_labels)
+  Heal_tran_HPV.m <- melt(GetMarginalProb(Heal_tran,1))
+  Heal_tran_Pap.m <- melt(GetMarginalProb(Heal_tran,2))
+  Heal_tran_Copa.m <- melt(GetMarginalProb(Heal_tran,3))
+  
+  rownames(Ov_tran) <- c(0:11)
+  colnames(Ov_tran) <- c(state_labels)
+  Ov_tran_HPV.m <- melt(GetMarginalProb(Ov_tran,1))
+  Ov_tran_Pap.m <- melt(GetMarginalProb(Ov_tran,2))
+  Ov_tran_Copa.m <- melt(GetMarginalProb(Ov_tran,3))
+  
+  rownames(Ob_tran) <- c(0:11)
+  colnames(Ob_tran) <- c(state_labels)
+  Ob_tran_HPV.m <- melt(GetMarginalProb(Ob_tran,1))
+  Ob_tran_Pap.m <- melt(GetMarginalProb(Ob_tran,2))
+  Ob_tran_Copa.m <- melt(GetMarginalProb(Ob_tran,3))
+  
+  rownames(ExOb_tran) <- c(0:11)
+  colnames(ExOb_tran) <- c(state_labels)
+  ExOb_tran_HPV.m <- melt(GetMarginalProb(ExOb_tran,1))
+  ExOb_tran_Pap.m <- melt(GetMarginalProb(ExOb_tran,2))
+  ExOb_tran_Copa.m <- melt(GetMarginalProb(ExOb_tran,3))
+  
+  if(type == 1){
+    BMI_df_HPV <- data.frame(BMI = c(rep("Underweight",4),rep("Healthy",4),rep("Overweight",4),rep("Obese",4),rep("Extremely Obese",4)), initial_states = 
+                               c(rep(ExOb_tran_HPV.m$X1,5)), new_states = c("Negative", "Negative","Positive", "Positive"), transition = 
+                               c(Un_tran_HPV.m$value,Heal_tran_HPV.m$value,Ov_tran_HPV.m$value,Ob_tran_HPV.m$value,ExOb_tran_HPV.m$value))
+  
+  
+  
+    BMI_df_HPV$BMI <- factor(BMI_df_HPV$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+    BMI_df_HPV$initial_states <- factor(BMI_df_HPV$initial_states, levels = c(1,2))
+    BMI_df_HPV$new_states <- factor(BMI_df_HPV$new_states, levels = rev(c("Negative", "Positive")))
+    
+  
+    
+    return(ggplot(BMI_df_HPV[which(BMI_df_HPV$initial_states == (state) ),], aes(x = BMI, y = transition, fill = new_states)) +
+      geom_bar(stat="identity") +
+      xlab("Initial State") + ylab("Probability") +
+      labs(fill = "New State") +
+      theme_bw() +
+      theme(plot.caption = element_text(hjust = .5)) +
+      scale_fill_manual(values=c("slateblue1", "tomato3")))
+  }
+  
+  if (type == 2){
+    BMI_df_Pap <- data.frame(BMI = c(rep("Underweight",9),rep("Healthy",9),rep("Overweight",9),rep("Obese",9),rep("Extremely Obese",9)), 
+                             initial_states = c(rep(ExOb_tran_Pap.m$X1,5)), 
+                             new_states = c(rep(c("Negative", "Negative","Negative","Equivocal", "Equivocal","Equivocal", "Positive","Positive","Positive"),5)),
+                             transition = c(Un_tran_Pap.m$value,Heal_tran_Pap.m$value,Ov_tran_Pap.m$value,Ob_tran_Pap.m$value,ExOb_tran_Pap.m$value))
+  
+    BMI_df_Pap$BMI <- factor(BMI_df_Pap$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+    BMI_df_Pap$initial_states <- factor(BMI_df_Pap$initial_states, levels = c(1,2,3))
+    BMI_df_Pap$new_states <- factor(BMI_df_Pap$new_states, levels = rev(c("Negative", "Equivocal", "Positive")))
+    
+  
+    
+    return(ggplot(BMI_df_Pap[which(BMI_df_Pap$initial_states == (state)),], aes(x = BMI, y = transition, fill = new_states)) +
+      geom_bar(stat="identity") +
+      xlab("Initial State") + ylab("Probability") +
+      labs(fill = "New State") +
+      theme_bw() +
+      theme(plot.caption = element_text(hjust = .5)) +
+      scale_fill_manual(values=c("slateblue1", "springgreen4", "tomato3")))
+  }
+  
+  if(type == 3){
+    BMI_df_Copa <- data.frame(BMI = c(rep("Underweight",4),rep("Healthy",4),rep("Overweight",4),rep("Obese",4),rep("Extremely Obese",4)), initial_states = 
+                               c(rep(ExOb_tran_Copa.m$X1,5)), new_states = c("Negative", "Negative","Positive", "Positive"), transition = 
+                               c(Un_tran_Copa.m$value,Heal_tran_Copa.m$value,Ov_tran_Copa.m$value,Ob_tran_Copa.m$value,ExOb_tran_Copa.m$value))
+  
+  
+  
+    BMI_df_Copa$BMI <- factor(BMI_df_Copa$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+    BMI_df_Copa$initial_states <- factor(BMI_df_Copa$initial_states, levels = c(1,2))
+    BMI_df_Copa$new_states <- factor(BMI_df_Copa$new_states, levels = rev(c("Negative", "Positive")))
+    
+  
+    
+    return(ggplot(BMI_df_Copa[which(BMI_df_Copa$initial_states == (state) ),], aes(x = BMI, y = transition, fill = new_states)) +
+      geom_bar(stat="identity") +
+      xlab("Initial State") + ylab("Probability") +
+      labs(fill = "New State") +
+      theme_bw() +
+      theme(plot.caption = element_text(hjust = .5)) +
+      scale_fill_manual(values=c("slateblue1", "tomato3")))
+  }
+  
+  
+  
+  
+ 
+}
+```
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+library(ggplot2)
+
+
+StackedTranBarStateMarg(1,1,2) + labs(title = "HPV Test Transition For Negative Individuals", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedTranBarStateMarg(1,2,2) + labs(title = "HPV Test Transition For Positive Individuals", subtitle = "Given that a person tests positive, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedTranBarStateMarg(2,1,2) + labs(title = "Cytology Transition For Negative Individuals", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedTranBarStateMarg(2,2,2) + labs(title = "Cytology Transition For Equivocal Individuals", subtitle = "Given that a person tests equivocal, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedTranBarStateMarg(2,3,2) + labs(title = "Cytology Transition For Positive Individuals", subtitle = "Given that a person tests positive, probability of transitioning", x = " BMI", caption = "Altered marginal calculation")
+
+StackedTranBarStateMarg(3,1,2) + labs(title = "Histology  Transition For Negative Individuials", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+```
+
+
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+TransitionHeatmap <- function(X_tran){
+  rownames(X_tran) <- c(state_labels)
+  colnames(X_tran) <- c(state_labels)
+  X_tran.m <- melt(X_tran) 
+  toDelete <- seq(1, nrow(X_tran.m), 2)
+  X_tran.m <- X_tran.m[toDelete,]
+  X_tran.m$X1 <- factor(X_tran.m$X1, levels = rev(state_labels))
+  X_tran.m$X2 <- factor(X_tran.m$X2, levels = (state_labels))
+  ggplot(X_tran.m,aes(X2, X1)) + 
+    geom_tile(aes(fill = value),color = "white") + 
+    scale_fill_gradient(low = "white",high = "red") +
+    labs(x = "New State", y = "Initial State", caption = "Heatmap of the transition matrix with initial non-CIN2+ states on the y-axis and new states on the x-axis") + 
+    theme(axis.text.y = element_text(size = 10), axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5)) + 
+    theme(axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0))) + 
+    theme(axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0))) +
+    theme(plot.caption = element_text(hjust = .5))
+}
+
+TransitionHeatmap(Un_tran) + ggtitle("Transition Matrix Heatmap (Underweight)") 
+TransitionHeatmap(Heal_tran) + ggtitle("Transition Matrix Heatmap (Healthy)") 
+TransitionHeatmap(Ov_tran) + ggtitle("Transition Matrix Heatmap (Overweight)")
+TransitionHeatmap(Ob_tran) + ggtitle("Transition Matrix Heatmap (Obese)") 
+TransitionHeatmap(ExOb_tran) + ggtitle("Transition Matrix Heatmap (Extremely Obese)") 
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+# rownames(Un_tran_var) <- c(0:11)
+# colnames(Un_tran_var) <- c(0:11)
+# Un_tran_var.m <- melt(Un_tran_var)
+# ggplot(Un_tran_var.m[which(Un_tran_var.m$X1 %% 2 == 0),], aes(X2, X1)) +
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance Heatmap (Underweight)")
+# 
+# rownames(Heal_tran_var) <- c(0:11)
+# colnames(Heal_tran_var) <- c(0:11)
+# Heal_tran_var.m <- melt(Heal_tran_var)
+# ggplot(Heal_tran_var.m[which(Heal_tran_var.m$X1 %% 2 == 0),], aes(X2, X1)) +
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance Heatmap (Healthy)")
+# 
+# rownames(Ov_tran_var) <- c(0:11)
+# colnames(Ov_tran_var) <- c(0:11)
+# Ov_tran_var.m <- melt(Ov_tran_var)
+# ggplot(Ov_tran_var.m[which(Ov_tran_var.m$X1 %% 2 == 0),], aes(X2, X1)) +
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance Heatmap (Overweight)")
+# 
+# rownames(Ob_tran_var) <- c(0:11)
+# colnames(Ob_tran_var) <- c(0:11)
+# Ob_tran_var.m <- melt(Ob_tran_var)
+# ggplot(Ob_tran_var.m[which(Ob_tran_var.m$X1 %% 2 == 0),], aes(X2, X1)) +
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance Heatmap (Obese)")
+# 
+# rownames(ExOb_tran_var) <- c(0:11)
+# colnames(ExOb_tran_var) <- c(0:11)
+# ExOb_tran_var.m <- melt(ExOb_tran_var)
+# ggplot(ExOb_tran_var.m[which(ExOb_tran_var.m$X1 %% 2 == 0),], aes(X2, X1)) +
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "New State", y = "Initial State") + ggtitle("Transition Variance Heatmap (Extremely Obese)")
+```
+
+
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+BMI_df <- data.frame(states = rep(state_labels,5), BMI = c(rep("Underweight",12),rep("Healthy",12),rep("Overweight",12),rep("Obese",12),rep("Extremely Obese",12)), state_vals = c(Un_state2,Heal_state2,Ov_state2,Ob_state2,ExOb_state2), correct_class = c(Un_correct,Heal_correct,Ov_correct,Ob_correct,ExOb_correct), lower = c(Un_lw,Heal_lw,Ov_lw,Ob_lw,ExOb_lw), upper = c(Un_up,Heal_up,Ov_up,Ob_up,ExOb_up))
+
+BMI_df$BMI <- factor (BMI_df$BMI, levels = rev(c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese")))
+BMI_df$states <- factor(BMI_df$states, levels = rev(state_labels))
+
+ggplot(BMI_df,aes(fill = BMI, y = correct_class,x = states)) + 
+  geom_bar(position="dodge", stat="identity") + 
+  xlab("State") + ylab("Classification Percent") + ggtitle("Correct Classification") + labs(subtitle = "The probability of correctly classifying each state as itself over all BMI categories") +
+  theme(plot.title = element_text(hjust = 0)) + 
+  theme_bw() +
+  coord_flip() + 
+  guides(fill = guide_legend(reverse=TRUE)) 
+
+# ggplot(BMI_df,aes(fill = BMI, y = correct_class,x = states)) + 
+#   geom_bar(position="dodge", stat="identity") + 
+#   geom_errorbar(aes(ymin=correct_class + lower, ymax=correct_class + upper), position = "dodge") + 
+#   xlab("State") + ylab("Classification Percent") + ggtitle("Correct Classification (with 95% Confidence Error Bars)") + 
+#   coord_flip() + 
+#   guides(fill = guide_legend(reverse=TRUE))
+```
+
+
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8, message = FALSE}
+
+StackedClassBar <- function(X_class){
+  rownames(X_class) <- c(state_labels)
+  colnames(X_class) <- c(state_labels)
+  X_class.m <- melt(X_class) 
+  X_class.m$X1 <- factor(X_class.m$X1, levels = (state_labels))
+  X_class.m$X2 <- factor(X_class.m$X2, levels = rev(state_labels))
+  ggplot(X_class.m,aes(x = X1, y = X_class.m$value,fill = X_class.m$X2)) + 
+    geom_bar(stat="identity") + 
+    xlab("True State") + ylab("Probability") + 
+    scale_fill_discrete(name = "New State") + 
+    labs(fill = "New State", caption = "Blue/Red = HPV negative/Positive. Lighter shades of blue/red = higher grade of cytology.  Gradients of gray = CIN2+") + 
+    theme_bw() + 
+    theme(plot.caption = element_text(hjust = .5)) +
+    theme(axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0))) +  theme(axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0))) + 
+    theme(axis.text.x = element_text(angle = 90, vjust = .5)) + 
+    scale_fill_manual(values=c("gray0", "coral1", "gray30", "brown1", "gray45", "brown4", "gray60", "deepskyblue", "gray75", "dodgerblue1", "gray90", "dodgerblue4")) + 
+    labs(fill = "Classified State") 
+}
+
+StackedClassBar(Un_class) + ggtitle("Classification Probabilities (Underweight)") + labs(subtitle = "Probability of classifying the true state (x-axis) as any of the states (y-axis)")
+StackedClassBar(Heal_class) + ggtitle("Classification Probabilities (Healthy)") + labs(subtitle = "Probability of classifying the true state (x-axis) as any of the states (y-axis)")
+StackedClassBar(Ov_class) + ggtitle("Classification Probabilities (Overweight)") + labs(subtitle = "Probability of classifying the true state (x-axis) as any of the states (y-axis)")
+StackedClassBar(Ob_class) + ggtitle("Classification Probabilities (Obese)") + labs(subtitle = "Probability of classifying the true state (x-axis) as any of the states (y-axis)")
+StackedClassBar(ExOb_class) + ggtitle("Classification Probabilities (Extremely Obese)") + labs(subtitle = "Probability of classifying the true state (x-axis) as any of the states (y-axis)")
+    
+```
+
+
+
+```{r, echo = FALSE, fig.width=5, fig.height=5}
+StackedClassBarState <- function(state){
+  library(reshape)
+  library(ggplot2)
+  
+  
+
+  
+  rownames(Un_class) <- c(0:11)
+  colnames(Un_class) <- c(state_labels)
+  Un_class.m <- melt(Un_class)
+  
+  rownames(Heal_class) <- c(0:11)
+  colnames(Heal_class) <- c(state_labels)
+  Heal_class.m <- melt(Heal_class)
+  
+  rownames(Ov_class) <- c(0:11)
+  colnames(Ov_class) <- c(state_labels)
+  Ov_class.m <- melt(Ov_class)
+  
+  rownames(Ob_class) <- c(0:11)
+  colnames(Ob_class) <- c(state_labels)
+  Ob_class.m <- melt(Ob_class)
+  
+  rownames(ExOb_class) <- c(0:11)
+  colnames(ExOb_class) <- c(state_labels)
+  ExOb_class.m <- melt(ExOb_class)
+  
+  
+  
+  BMI_df <- data.frame(BMI = c(rep("Underweight",144),rep("Healthy",144),rep("Overweight",144),rep("Obese",144),rep("Extremely Obese",144)), true_states = c(rep(ExOb_class.m$X1,5)), classified_states = Un_class.m$X2, classification = c(Un_class.m$value,Heal_class.m$value,Ov_class.m$value,Ob_class.m$value,ExOb_class.m$value))
+  
+  BMI_df$BMI <- factor(BMI_df$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+  BMI_df$true_states <- factor(BMI_df$true_states, levels = c(0,1,2,3,4,5,6,7,8,9,10,11))
+  BMI_df$classified_states <- factor(BMI_df$classified_states, levels = rev(state_labels))
+  
+  
+    
+  ggplot(BMI_df[which(BMI_df$true_states == state),], aes(x = BMI, y = classification, fill = classified_states)) +
+    geom_bar(stat="identity") +
+    xlab("Initial State") + ylab("Probability") +
+    labs(fill = "Classified State", caption = "Blue/Red = HPV negative/Positive. Lighter shades of blue/red = higher grade of cytology.  Gradients of gray = CIN2+") +
+    theme_bw() +
+    theme(plot.caption = element_text(hjust = .5)) +
+    scale_fill_manual(values=c("gray0", "coral1", "gray30", "brown1", "gray45", "brown4", "gray60", "deepskyblue", "gray75", "dodgerblue1", "gray90", "dodgerblue4")) +
+    ggtitle("Classification Probabilities by BMI Category")
+}
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+StackedClassBarState(0) + xlab("Initial State = (HPV Negative, Cytology Negative, Histology Negative)") +
+    labs(subtitle = "The probability of classifying HPV Negative, Cytology Negative, Histology Negative")
+
+StackedClassBarState(1) + xlab("Initial State = (HPV Negative, Cytology Negative, Histology Positive)") +
+    labs(subtitle = "The probability of classifying HPV Negative, Cytology Negative, Histology Positive")
+
+StackedClassBarState(2) + xlab("Initial State = (HPV Negative, Cytology Equivocal, Histology Negative)") +
+    labs(subtitle = "The probability of classifying  HPV Negative, Cytology Equivocal, Histology Negative")
+
+StackedClassBarState(3) + xlab("Initial State = (HPV Negative, Cytology Equivocal, Histology Positive)") +
+    labs(subtitle = "The probability of classifying  HPV Negative, Cytology Equivocal, Histology Positive")
+
+StackedClassBarState(4) + xlab("Initial State = (HPV Negative, Cytology Positive, Histology Negative)") +
+    labs(subtitle = "The probability of classifying from HPV Negative, Cytology Positive, Histology Negative")
+
+StackedClassBarState(5) + xlab("Initial State = (HPV Negative, Cytology Positive, Histology Positive)") +
+    labs(subtitle = "The probability of classifying from HPV Negative, Cytology Positive, Histology Positive")
+
+StackedClassBarState(6) + xlab("Initial State = (HPV Positive, Cytology Negative, Histology Negative)") +
+    labs(subtitle = "The probability of classifying from HPV Positive, Cytology Negative, Histology Negative")
+
+StackedClassBarState(7) + xlab("Initial State = (HPV Positive, Cytology Negative, Histology Positive)") +
+    labs(subtitle = "The probability of classifying from HPV Positive, Cytology Negative, Histology Positive")
+
+StackedClassBarState(8) + xlab("Initial State = (HPV Positive, Cytology Equivocal, Histology Negative)") +
+    labs(subtitle = "The probability of classifying from HPV Positive, Cytology Equivocal, Histology Negative")
+
+StackedClassBarState(9) + xlab("Initial State = (HPV Positive, Cytology Equivocal, Histology Positive)") +
+    labs(subtitle = "The probability of classifying from HPV Positive, Cytology Equivocal, Histology Positive")
+
+StackedClassBarState(10) + xlab("Initial State = (HPV Positive, Cytology Positive, Histology Negative)") +
+    labs(subtitle = "The probability of classifying from HPV Positive, Cytology Positive, Histology Negative (x-axis) as all other states (y-axis)")
+
+StackedClassBarState(11) + xlab("Initial State = (HPV Positive, Cytology Positive, Histology Positive)") +
+    labs(subtitle = "The probability of classifying from HPV Positive, Cytology Positive, Histology Positive (x-axis) as all other states (y-axis)")
+```
+
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+
+ClassHeatmap <- function(X_class){
+  rownames(X_class) <- c(state_labels)
+  colnames(X_class) <- c(state_labels)
+  X_class.m <- melt(X_class) 
+  X_class.m$X1 <- factor(X_class.m$X1, levels = rev(state_labels))
+  X_class.m$X2 <- factor(X_class.m$X2, levels = (state_labels))
+  ggplot(X_class.m,aes(X2, X1)) + 
+    geom_tile(aes(fill = value),color = "white") + 
+    scale_fill_gradient(low = "white",high = "red") +
+    labs(x = "Classified State", y = "True State") + 
+    theme(axis.text.y = element_text(size = 9), axis.text.x = element_text(size = 8, angle = 90, vjust = 0.5)) + 
+    theme(axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0))) + 
+    theme(axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0))) +
+    theme(plot.title = element_text(hjust = 0))
+}
+
+ClassHeatmap(Un_class) + ggtitle("Classification Matrix Heatmap (Underweight)") + labs(subtitle = "Heatmap of the classification matrix")
+ClassHeatmap(Heal_class) + ggtitle("Classification Matrix Heatmap (Healthy)") + labs(subtitle = "Heatmap of the classification matrix")
+ClassHeatmap(Ov_class) + ggtitle("Classification Matrix Heatmap (Overweight)") + labs(subtitle = "Heatmap of the classification")
+ClassHeatmap(Ob_class) + ggtitle("Classification Matrix Heatmap (Obese)") + labs(subtitle = "Heatmap of the classification")
+ClassHeatmap(ExOb_class) + ggtitle("Classification Matrix Heatmap (Extremely Obese)") + labs(subtitle = "Heatmap of the classification matrix")
+
+
+```
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+StackedClassBarStateMarg <- function(type,state,type1){
+  library(reshape)
+  library(ggplot2)
+  
+  
+  if (type1 == 1){
+    GetMarginalProb <- function(data_matrix, type){
+      HPV <-  matrix(0L, nrow = 2, ncol = 2)
+      HPV[1,1] <- sum(data_matrix[1:6,1:6])
+      HPV[1,2] <- sum(data_matrix[1:6,7:12])
+      HPV[2,2] <- sum(data_matrix[7:12,7:12])
+      HPV[2,1] <- sum(data_matrix[7:12,1:6])
+      
+      Pap <-  matrix(0L, nrow = 3, ncol = 3)
+      Pap[1,1] <- sum(data_matrix[c(1,2,7,8),c(1,2,7,8)])
+      Pap[1,2] <- sum(data_matrix[c(1,2,7,8),c(3,4,9,10)])
+      Pap[1,3] <- sum(data_matrix[c(1,2,7,8),c(5,6,11,12)])
+      
+      Pap[2,1] <- sum(data_matrix[c(3,4,9,10),c(1,2,7,8)])
+      Pap[2,2] <- sum(data_matrix[c(3,4,9,10),c(3,4,9,10)])
+      Pap[2,3] <- sum(data_matrix[c(3,4,9,10),c(5,6,11,12)])
+      
+      Pap[3,1] <- sum(data_matrix[c(5,6,11,12),c(1,2,7,8)])
+      Pap[3,2] <- sum(data_matrix[c(5,6,11,12),c(3,4,9,10)])
+      Pap[3,3] <- sum(data_matrix[c(5,6,11,12),c(5,6,11,12)])
+      
+      Copa <-  matrix(0L, nrow = 2, ncol = 2)
+      Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+      Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+      Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+      Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+      
+      if (type == 1){
+        return(Normalize(HPV))
+      } else if (type == 2){
+        return(Normalize(Pap))
+      } else {
+        return(Normalize(Copa))
+      }
+    
+    }
+  } else {
+    GetMarginalProb <- function(data_matrix, type){
+      HPV <-  matrix(0L, nrow = 2, ncol = 2)
+      HPV[1,1] <- sum(data_matrix[c(1,3,5),c(1,3,5)])
+      HPV[1,2] <- sum(data_matrix[c(1,3,5),c(7,9,11)])
+      HPV[2,2] <- sum(data_matrix[c(7,9,11),c(7,9,11)])
+      HPV[2,1] <- sum(data_matrix[c(7,9,11),c(1,3,5)])
+      
+      Pap <-  matrix(0L, nrow = 3, ncol = 3)
+      Pap[1,1] <- sum(data_matrix[c(1,7),c(1,7)])
+      Pap[1,2] <- sum(data_matrix[c(1,7),c(3,9)])
+      Pap[1,3] <- sum(data_matrix[c(1,7),c(5,11)])
+      
+      Pap[2,1] <- sum(data_matrix[c(3,9),c(1,2,7,8)])
+      Pap[2,2] <- sum(data_matrix[c(3,9),c(3,4,9,10)])
+      Pap[2,3] <- sum(data_matrix[c(3,9),c(5,11)])
+      
+      Pap[3,1] <- sum(data_matrix[c(5,11),c(1,7)])
+      Pap[3,2] <- sum(data_matrix[c(5,11),c(3,9)])
+      Pap[3,3] <- sum(data_matrix[c(5,11),c(5,11)])
+      
+      Copa <-  matrix(0L, nrow = 2, ncol = 2)
+      Copa[1,1] <- sum(data_matrix[c(1,3,5,7,9,11),c(1,3,5,7,9,11)])
+      Copa[1,2] <- sum(data_matrix[c(1,3,5,7,9,11),c(2,4,6,8,10,12)])
+      Copa[2,2] <- sum(data_matrix[c(2,4,6,8,10,12),c(2,4,6,8,10,12)])
+      Copa[2,1] <- sum(data_matrix[c(2,4,6,8,10,12),c(1,3,5,7,9,11)])
+      
+      if (type == 1){
+        return(Normalize(HPV))
+      } else if (type == 2){
+        return(Normalize(Pap))
+      } else {
+        return(Normalize(Copa))
+      }
+    
+    }  
+    
+  }
+
+  
+  rownames(Un_class) <- c(0:11)
+  colnames(Un_class) <- c(state_labels)
+  Un_class_HPV.m <- melt(GetMarginalProb(Un_class,1))
+  Un_class_Pap.m <- melt(GetMarginalProb(Un_class,2))
+  Un_class_Copa.m <- melt(GetMarginalProb(Un_class,3))
+  
+  rownames(Heal_class) <- c(0:11)
+  colnames(Heal_class) <- c(state_labels)
+  Heal_class_HPV.m <- melt(GetMarginalProb(Heal_class,1))
+  Heal_class_Pap.m <- melt(GetMarginalProb(Heal_class,2))
+  Heal_class_Copa.m <- melt(GetMarginalProb(Heal_class,3))
+  
+  rownames(Ov_class) <- c(0:11)
+  colnames(Ov_class) <- c(state_labels)
+  Ov_class_HPV.m <- melt(GetMarginalProb(Ov_class,1))
+  Ov_class_Pap.m <- melt(GetMarginalProb(Ov_class,2))
+  Ov_class_Copa.m <- melt(GetMarginalProb(Ov_class,3))
+  
+  rownames(Ob_class) <- c(0:11)
+  colnames(Ob_class) <- c(state_labels)
+  Ob_class_HPV.m <- melt(GetMarginalProb(Ob_class,1))
+  Ob_class_Pap.m <- melt(GetMarginalProb(Ob_class,2))
+  Ob_class_Copa.m <- melt(GetMarginalProb(Ob_class,3))
+  
+  rownames(ExOb_class) <- c(0:11)
+  colnames(ExOb_class) <- c(state_labels)
+  ExOb_class_HPV.m <- melt(GetMarginalProb(ExOb_class,1))
+  ExOb_class_Pap.m <- melt(GetMarginalProb(ExOb_class,2))
+  ExOb_class_Copa.m <- melt(GetMarginalProb(ExOb_class,3))
+  
+  if(type == 1){
+    BMI_df_HPV <- data.frame(BMI = c(rep("Underweight",4),rep("Healthy",4),rep("Overweight",4),rep("Obese",4),rep("Extremely Obese",4)), initial_states = 
+                               c(rep(ExOb_class_HPV.m$X1,5)), new_states = c("Negative", "Negative","Positive", "Positive"), classification = 
+                               c(Un_class_HPV.m$value,Heal_class_HPV.m$value,Ov_class_HPV.m$value,Ob_class_HPV.m$value,ExOb_class_HPV.m$value))
+  
+  
+  
+    BMI_df_HPV$BMI <- factor(BMI_df_HPV$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+    BMI_df_HPV$initial_states <- factor(BMI_df_HPV$initial_states, levels = c(1,2))
+    BMI_df_HPV$new_states <- factor(BMI_df_HPV$new_states, levels = rev(c("Negative", "Positive")))
+    
+  
+    
+    return(ggplot(BMI_df_HPV[which(BMI_df_HPV$initial_states == (state) ),], aes(x = BMI, y = classification, fill = new_states)) +
+      geom_bar(stat="identity") +
+      xlab("Initial State") + ylab("Probability") +
+      labs(fill = "New State") +
+      theme_bw() +
+      theme(plot.caption = element_text(hjust = .5)) +
+      scale_fill_manual(values=c("slateblue1", "tomato3")))
+  }
+  
+  if (type == 2){
+    BMI_df_Pap <- data.frame(BMI = c(rep("Underweight",9),rep("Healthy",9),rep("Overweight",9),rep("Obese",9),rep("Extremely Obese",9)), 
+                             initial_states = c(rep(ExOb_class_Pap.m$X1,5)), 
+                             new_states = c(rep(c("Negative", "Negative","Negative","Equivocal", "Equivocal","Equivocal", "Positive","Positive","Positive"),5)),
+                             classification = c(Un_class_Pap.m$value,Heal_class_Pap.m$value,Ov_class_Pap.m$value,Ob_class_Pap.m$value,ExOb_class_Pap.m$value))
+  
+    BMI_df_Pap$BMI <- factor(BMI_df_Pap$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+    BMI_df_Pap$initial_states <- factor(BMI_df_Pap$initial_states, levels = c(1,2,3))
+    BMI_df_Pap$new_states <- factor(BMI_df_Pap$new_states, levels = rev(c("Negative", "Equivocal", "Positive")))
+    
+  
+    
+    return(ggplot(BMI_df_Pap[which(BMI_df_Pap$initial_states == (state)),], aes(x = BMI, y = classification, fill = new_states)) +
+      geom_bar(stat="identity") +
+      xlab("Initial State") + ylab("Probability") +
+      labs(fill = "New State") +
+      theme_bw() +
+      theme(plot.caption = element_text(hjust = .5)) +
+      scale_fill_manual(values=c("slateblue1", "springgreen4", "tomato3")))
+  }
+  
+  if(type == 3){
+    BMI_df_Copa <- data.frame(BMI = c(rep("Underweight",4),rep("Healthy",4),rep("Overweight",4),rep("Obese",4),rep("Extremely Obese",4)), initial_states = 
+                               c(rep(ExOb_class_Copa.m$X1,5)), new_states = c("Negative", "Negative","Positive", "Positive"), classification = 
+                               c(Un_class_Copa.m$value,Heal_class_Copa.m$value,Ov_class_Copa.m$value,Ob_class_Copa.m$value,ExOb_class_Copa.m$value))
+  
+  
+  
+    BMI_df_Copa$BMI <- factor(BMI_df_Copa$BMI, levels = c("Underweight", "Healthy", "Overweight", "Obese", "Extremely Obese"))
+    BMI_df_Copa$initial_states <- factor(BMI_df_Copa$initial_states, levels = c(1,2))
+    BMI_df_Copa$new_states <- factor(BMI_df_Copa$new_states, levels = rev(c("Negative", "Positive")))
+    
+  
+    
+    return(ggplot(BMI_df_Copa[which(BMI_df_Copa$initial_states == (state) ),], aes(x = BMI, y = classification, fill = new_states)) +
+      geom_bar(stat="identity") +
+      xlab("Initial State") + ylab("Probability") +
+      labs(fill = "New State") +
+      theme_bw() +
+      theme(plot.caption = element_text(hjust = .5)) +
+      scale_fill_manual(values=c("slateblue1", "tomato3")))
+  }
+  
+  
+  
+  
+ 
+}
+```
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+library(ggplot2)
+#initilaly negaive 
+StackedClassBarStateMarg(1,1,1) + labs(title = "HPV Test Classification For Negative Individuals", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI")
+
+StackedClassBarStateMarg(1,1,2) + labs(title = "HPV Test Classification For Negative Individuals", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedClassBarStateMarg(1,2,1) + labs(title = "HPV Test Classification For Positive Individuals", subtitle = "Given that a person tests positive, probability of transitioning", x = "BMI")
+
+
+StackedClassBarStateMarg(2,1,1) + labs(title = "Cytology Classification For Negative Individuals", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI")
+
+StackedClassBarStateMarg(2,1,2) + labs(title = "Cytology Classification For Negative Individuals", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedClassBarStateMarg(2,2,1) + labs(title = "Cytology Classification For Equivocal Individuals", subtitle = "Given that a person tests equivocal, probability of transitioning", x = "BMI")
+
+StackedClassBarStateMarg(2,2,2) + labs(title = "Cytology Classification For Equivocal Individuals", subtitle = "Given that a person tests equivocal, probability of transitioning", x = "BMI", caption = "Altered marginal calculation")
+
+StackedClassBarStateMarg(2,3,1) + labs(title = "Cytology Classification For Positive Individuals", subtitle = "Given that a person tests positive, probability of transitioning", x = "BMI")
+
+StackedClassBarStateMarg(3,1,1) + labs(title = "Histology  Classification For Negative Individuials", subtitle = "Given that a person tests negative, probability of transitioning", x = "BMI")
+
+
+
+
+```
+
+
+
+```{r, echo = FALSE, fig.width=8, fig.height=8}
+# rownames(Un_class_var) <- c(0:11)
+# colnames(Un_class_var) <- c(0:11)
+# Un_class_var.m <- melt(Un_class_var)
+# ggplot(Un_class_var.m, aes(X2, X1)) + 
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification Variance Heatmap (Underweight)")
+# 
+# rownames(Heal_class_var) <- c(0:11)
+# colnames(Heal_class_var) <- c(0:11)
+# Heal_class_var.m <- melt(Heal_class_var)
+# ggplot(Heal_class_var.m, aes(X2, X1)) + 
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification Variance Heatmap (Healthy)")
+# 
+# rownames(Ov_class_var) <- c(0:11)
+# colnames(Ov_class_var) <- c(0:11)
+# Ov_class_var.m <- melt(Ov_class_var)
+# ggplot(Ov_class_var.m, aes(X2, X1)) + 
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification Variance Heatmap (Overweight)")
+# 
+# rownames(Ob_class_var) <- c(0:11)
+# colnames(Ob_class_var) <- c(0:11)
+# Ob_class_var.m <- melt(Ob_class_var)
+# ggplot(Ob_class_var.m, aes(X2, X1)) + 
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification Variance Heatmap (Obese)")
+# 
+# rownames(ExOb_class_var) <- c(0:11)
+# colnames(ExOb_class_var) <- c(0:11)
+# ExOb_class_var.m <- melt(ExOb_class_var)
+# ggplot(ExOb_class_var.m, aes(X2, X1)) + 
+#   geom_tile(aes(fill = value),color = "white") + 
+#   scale_fill_gradient(low = "white",high = "red") + 
+#   scale_y_reverse() + theme_bw() + labs(x = "Classified State", y = "True State") + ggtitle("Classification Variance Heatmap (Extremely Obese)")
+```
