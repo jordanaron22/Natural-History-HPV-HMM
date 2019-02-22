@@ -444,10 +444,7 @@ Pattern2Data <- function(unique_patterns, time_length){
 ```
 
 ```{r}
-InitialProbFull <- function(data, freq_vec,stayer_vec, time){
-  if (missing(time)){
-    time <- 1
-  }
+InitialProbFull <- function(data, freq_vec,stayer_vec){
   k <- numOfStates(data)
   init_prob <- numeric(length(k))
   
