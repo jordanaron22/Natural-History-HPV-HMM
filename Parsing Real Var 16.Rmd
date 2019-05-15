@@ -1,0 +1,70 @@
+---
+title: "Parsing Real Var"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, include = FALSE, eval = FALSE}
+setwd("Data/Real/16/Bootstrap/")
+states <- 16
+list_of_names <- list.files()
+reps <- length(list_of_names)
+getwd()
+
+init_est_array <- array(0,dim = c(1,states,reps))
+tran_est_array <- array(0,dim = c(states,states,reps))
+class_est_array <- array(0,dim = c(states,states,reps))
+
+init_est_list <- vector("list", length = reps)
+tran_est_list <- vector("list", length = reps)
+class_est_list <- vector("list", length = reps)
+
+count <- 1
+
+for (name in list_of_names){
+  load(name)
+  
+  init_est_list[[count]] <- to_save[[1]]
+  tran_est_list[[count]] <- to_save[[2]]
+  class_est_list[[count]] <- to_save[[3]]
+  
+  
+  
+  
+  for (i in 1:states){
+    init_est_array[1,i,count] <- init_est_list[[count]][i]
+    
+    for (j in 1:states){
+      tran_est_array[i,j,count] <- tran_est_list[[count]][i,j]
+      
+      class_est_array[i,j,count] <- class_est_list[[count]][i,j]
+    }
+  }
+  
+  count <- count + 1
+}
+
+
+#############################################
+
+init_var <- numeric(states)
+tran_var <- matrix(0,states,states)
+class_var <- matrix(0,states,states)
+
+for (i in 1:states){
+  init_var[i] <- var(init_est_array[1,i,])
+  
+  for (j in 1:states){
+    tran_var[i,j] <- var(tran_est_array[i,j,])
+    class_var[i,j] <- var(class_est_array[i,j,])
+  }
+}
+
+init_sd <- sqrt(init_var)
+tran_sd <- sqrt(tran_var)
+class_sd <- sqrt(class_var)
+
+```
