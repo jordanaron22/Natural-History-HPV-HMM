@@ -2,3 +2,10 @@
 .Rhistory
 .RData
 .Ruserdata
+Datasets/
+Data/
+scripting/
+Sims/
+parameters.rda
+lsil.risk.file.y2018m10d17.csv
+HMM Presentation.pdf
