@@ -1,0 +1,300 @@
+---
+title: "Parallel Test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+Normalize <- function(data){
+  for (i in 1:dim(data)[1]){
+    if (sum(data[i,],na.rm = TRUE) != 0){
+      data[i,] <- data[i,]/sum(data[i,])
+    }
+  }
+  return(data)
+}
+
+Classification <- function(x_val,y_val,class){
+  if (is.na(x_val)){
+    return(1)
+  }
+  return(class[[y_val+1,x_val+1]])
+}
+
+ClassificationRatio <- function(x_val, x_vals, y_val, class){
+  num <- Classification(x_val, y_val, class)
+  denom <- 0
+  for (val in x_vals){
+    denom <- denom + Classification(val, y_val, class)
+  }
+  if (denom == 0){return(0)}
+  return(num/denom)
+}
+
+numOfStates <- function(data,type){
+  if (missing(type)){
+    return(c(0:15))
+  }
+  else if (type == 1){
+    return (c(0:3))
+  } else if (type == 2){
+    return(c(0:2))
+  } else if (type == 3){
+    return (c(0:1))
+  }else if (type == 4){
+    return(c(0:23))
+  }else if (missing(type)){
+    return (c(min(data, na.rm = T):max(data, na.rm = T)))
+  }
+  
+}
+
+GetPatterns <- function(states){
+  library(plyr)
+  options(scipen = 999)
+  vals <- rep(NaN,dim(states)[1])
+  for (i in 1:dim(states)[1]){
+    val <- ""
+    for(j in 1:dim(states)[2]){
+      for(k in 1:dim(states)[3]){
+        if (!is.na(states[i,j,k])){
+          states_val <- states[i,j,k] 
+          } else {
+            states_val <- NA
+          }
+          val <- paste0(val, states_val,",")
+        }
+      }
+    val <- substr(val, 1, nchar(val)-1)
+    vals[i] <- val
+  }
+  return(vals)
+}
+
+Pattern2Data <- function(unique_patterns){
+  time_length <- 5
+  n <- length(unique_patterns[[1]])
+  partial_len <- 12
+  freq_vec <- numeric(n)
+  state_array <- array(0, dim = c(n,time_length,partial_len))
+  for (i in 1:n){
+    freq_vec[i] <- unique_patterns$Freq[[i]]
+    pattern <- unique_patterns$all_patterns[[i]]
+
+    pattern <- strsplit(pattern, split = ",")[[1]]
+    for (time in 1:time_length){
+      state_array[i,time,] <- suppressWarnings(as.integer(pattern[(((time-1)*partial_len)+1):(time*partial_len)]))
+    }
+  }
+
+  return(list(state_array, freq_vec))
+}
+
+
+InitialProbTrue <- function(data, stayer_vec){
+  init <- numeric(length(numOfStates(data)))
+  for (i in 1:dim(data)[1]){
+    if (stayer_vec[i] == 0 & !is.na(data[i,1])){
+      init[data[i,1]+1] <- init[data[i,1]+1] + 1
+    }
+  }
+  return(init)
+}
+
+InitialProb <- function(data, freq_vec, stayer_vec = rep(0,length(freq_vec))){
+  init <- numeric(length(numOfStates(data)))
+  for (i in 1:dim(data)[1]){
+    if (stayer_vec[i] == 0){
+      num_of_parts <- sum(!is.na(data[i,1,]))
+      if (!is.na(data[i,1,1])){
+        for (j in data[i,1,]){
+          if (!is.na(j)){
+            init[j+1] <- init[j+1] + freq_vec[i]/num_of_parts
+          }
+          
+        }
+      }
+    }
+  }
+  return(init)
+}
+
+TransitionProb <- function(data, freq_vec, stayer_vec = rep(0,length(freq_vec))){
+  k <- length(numOfStates(data))
+  tran <- matrix(0,k,k)
+  for (i in 1:dim(data)[1]){
+    if (stayer_vec[i] == 0){
+      for (j in 2:dim(data)[2]){
+        if (!is.na(data[i,j-1,1]) & !is.na(data[i,j,1])){
+          num_of_parts <- sum(!is.na(data[i,j-1,])) * sum(!is.na(data[i,j,]))
+          for (k1 in data[i,j-1,]){
+            for (k2 in data[i,j,]){
+              if (!is.na(k1) & !is.na(k2)){
+                tran[k1+1,k2+1] <- tran[k1+1,k2+1] + freq_vec[i]/num_of_parts
+              }
+              
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  for (i in 1:dim(tran)[1]){
+    if (i %% 2 == 0){
+      tran[i,] <- 0
+      if (i < 14){
+        tran[i,i+4] <- 1 
+      } else {
+        tran[i,i] <- 1
+      }
+    }
+  }
+  return(tran)
+}
+
+TransitionProbTrue <- function(data,stayer_vec){
+  k <- length(numOfStates(data))
+  tran <- matrix(0,k,k)
+  for (i in 1:dim(data)[1]){
+    if (stayer_vec[i] == 0){
+      for (j in 2:dim(data)[2]){
+        if (!is.na(data[i,j-1]) & !is.na(data[i,j])){
+          tran[data[i,j-1]+1,data[i,j]+1] <- tran[data[i,j-1]+1,data[i,j]+1] + 1
+        }
+      }
+    }
+  }
+  return(tran)
+}
+
+GetAllPossibilitiesForw <- function(data, time){
+  
+  for (curr_time in 1:time){
+    
+    if (curr_time == 1){
+      possibilities <- data[1,]
+      if (sum(!is.na(possibilities)) == 0){
+        possibilities <- NA
+      } else {
+        possibilities <- possibilities[!is.na(possibilities)]
+      }
+      possibilities <- t(as.matrix(possibilities))
+      
+    } else {
+      current_possibilities <- data[curr_time,]
+      if (sum(!is.na(current_possibilities)) == 0){
+        possibilities <- rbind(possibilities, NA)
+        
+      } else {
+        current_possibilities <- current_possibilities[!is.na(current_possibilities)]
+        running_possibilities <- c()
+        current_possibilities <- rev(current_possibilities)
+        for (i in 1:length(current_possibilities)){
+          running_possibilities <- cbind(rbind(possibilities,current_possibilities[i]),running_possibilities)
+        }
+        possibilities <- running_possibilities
+      }
+    }
+  }
+  return(possibilities)
+
+}
+
+GetAllPossibilitiesBackw <- function(data, time){
+  max_time <- dim(data)[1]
+  for (curr_time in time:max_time){
+    if (curr_time == time){
+      possibilities <- data[curr_time,]
+      if (sum(!is.na(possibilities)) == 0){
+        possibilities <- NA
+      } else {
+        possibilities <- possibilities[!is.na(possibilities)]
+      }
+      possibilities <- t(as.matrix(possibilities))
+      
+    } else {
+      current_possibilities <- data[curr_time,]
+      if (sum(!is.na(current_possibilities)) == 0){
+        possibilities <- rbind(possibilities, NA)
+        
+      } else {
+        current_possibilities <- current_possibilities[!is.na(current_possibilities)]
+        running_possibilities <- c()
+        current_possibilities <- rev(current_possibilities)
+        for (i in 1:length(current_possibilities)){
+          running_possibilities <- cbind(rbind(possibilities,current_possibilities[i]),running_possibilities)
+        }
+        possibilities <- running_possibilities
+      }
+    }
+  }
+  if (time == 4){
+    possibilities <- possibilities[,order(possibilities[1,], possibilities[2,])]
+  } else if (time == 3){
+    possibilities <- possibilities[,order(possibilities[1,], possibilities[2,], possibilities[3,])]
+  } else if (time == 2){
+    possibilities <- possibilities[,order(possibilities[1,], possibilities[2,], possibilities[3,], possibilities[4,])]
+  } else if (time == 1){
+    possibilities <- possibilities[,order(possibilities[1,], possibilities[2,], possibilities[3,], possibilities[4,], possibilities[5,])]
+  }
+  return(as.matrix(possibilities))
+
+}
+
+#JASA paper method 
+ForwardIterFull <- function(data,time,init,tran,class){
+  k <- numOfStates()
+  all_pos_obs <- GetAllPossibilitiesForw(data,time)
+  alpha_matrix_pos <- vector("list", dim(all_pos_obs)[2])
+  for(pos in 1:dim(all_pos_obs)[2]){
+    pos_ob <- all_pos_obs[,pos]
+    
+    alpha_matrix<-vector("list",time)
+    alpha_i <- numeric(length(k))
+    
+    for (i in 1:time){
+      alpha_matrix[[i]] <- alpha_i
+    }
+    
+    
+    for (i in 1:length(k)){
+      if (!is.na(pos_ob[1])){
+        alpha_matrix[[1]][i] <- init[i] * Classification(pos_ob[1],k[i],class)
+      } else {
+        alpha_matrix[[1]][i] <- init[i]
+      }
+    }
+    
+    if (time > 1){
+      for (i in 2:time){
+        for (j in 1:length(k)){
+          if (!is.na(pos_ob[i])){
+            alpha_matrix[[i]][j] <- (alpha_matrix[[i-1]] %*% tran[,j]) *  Classification(pos_ob[i],k[j],class)
+          } else {
+            alpha_matrix[[i]][j] <- (alpha_matrix[[i-1]] %*% tran[,j])
+          }
+        }
+      }
+    }
+    
+    alpha_matrix_pos[[pos]] <- alpha_matrix
+    
+  }
+  
+  return(alpha_matrix_pos)
+}
+
+tic()
+no_cores <- 8
+cl <- makeCluster(no_cores)
+clusterExport(cl, "numOfStates")
+clusterExport(cl, "GetAllPossibilitiesForw")
+clusterExport(cl, "Classification")
+forw2 <- parApply(cl, sim_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+stopCluster(cl)
+toc()
+```
