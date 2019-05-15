@@ -1,0 +1,160 @@
+---
+title: "ALTS EM"
+output: html_document
+---
+
+```{r}
+ClassHC <- function(){
+  class_hc <- matrix(0,12,12)
+  for (i in 1:12){
+    if ((i-1) %% 2 == 0){
+      class_hc[i,i] <- .95
+      if ((((i-1) %% 4) %/% 2) == 0){
+        class_hc[i,i+2] <- 1 - class_hc[i,i]
+      }  else {
+        class_hc[i,i-2] <- 1 - class_hc[i,i]
+      }
+    }else {
+      class_hc[i,i] <- .95
+      if ((((i-1) %% 4) %/% 2) == 0){
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i+1] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i+2] <- (1 - class_hc[i,i]) / 3
+      } else {
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i-2] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i-3] <- (1 - class_hc[i,i]) / 3
+      }
+    }
+  }
+  return(class_hc)
+}
+```
+
+```{r}
+IntroduceNoise <- function(parameter, epsilon){
+  if (is.vector(parameter)){
+    for (i in 1:length(parameter)){
+      new_val <- runif(1,parameter[i] - epsilon, parameter[i] + epsilon)
+      if (new_val < .01){new_val <- .01}
+      else if (new_val > 1){new_val <- 1}
+      parameter[i] <- new_val
+    }
+  } else {
+    for (i in 1:dim(parameter)[1]){
+      for (j in 1:dim(parameter)[2]){
+        if (parameter[i,j] != 0 & parameter[i,j] != 1){
+          new_val <- runif(1,parameter[i,j] - epsilon, parameter[i,j] + epsilon)
+          if (new_val < .01){new_val <- .01}
+          else if (new_val > 1){new_val <- 1}
+          parameter[i,j] <- new_val
+        }
+      }
+    }
+    
+  }
+  
+  return(parameter)
+}
+```
+
+```{r}
+all_patterns <- GetPatterns(ALTS)
+unique_patterns <- as.data.frame(table(all_patterns), stringsAsFactors = F)
+ALTS_pattern_list <- Pattern2Data(unique_patterns)
+
+ALTS_pattern <- ALTS_pattern_list[[1]]
+freq_vec <- ALTS_pattern_list[[2]]
+```
+
+```{r}
+init_count <- InitialProb(ALTS_pattern,freq_vec)
+init <- init_count/(sum(init_count))
+init <- IntroduceNoise(init,.05) 
+init <- init/sum(init)
+
+tran_count <- TransitionProb(ALTS_pattern,freq_vec)
+tran <- Normalize(tran_count)
+tran <- IntroduceNoise(tran,.05) 
+tran <- Normalize(tran)
+
+class_og <- ClassHC()
+class <- class_og
+class <- IntroduceNoise(class,.05)
+class <- Normalize(class)
+
+pi_0_og <- runif(1,0,.03)
+pi_0 <- pi_0_og
+
+
+```
+
+```{r}
+library(parallel)
+library(foreach)
+library(tictoc)
+library(doParallel)
+
+no_cores <- 4
+cl <- makeCluster(no_cores)
+
+clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
+clusterExport(cl, c("GetAllPossibilitiesBackw"))
+clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
+
+forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+backw <- parApply(cl, ALTS_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+likelihoods <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+
+old_likelihood <- (log(likelihoods) %*% freq_vec)[1]
+
+init_new <- CalcInitialPattern(ALTS_pattern,freq_vec,pi_0,forw,backw,likelihoods)
+tran_new <- CalcTransitionPattern(ALTS_pattern,tran,class,freq_vec,pi_0, forw, backw, likelihoods)
+# class_new <- CalcClassificationPatternNoStayer(ALTS_pattern,class,freq_vec, forw, backw, likelihoods)
+
+class_new <- CalcClassificationPattern(ALTS_pattern,class,freq_vec, forw, backw, likelihoods,pi_0)
+pi_0_new <- CalcStayer(ALTS_pattern,init,tran,class,freq_vec,pi_0)
+
+
+init <- init_new
+tran <- tran_new
+class <- class_new
+pi_0 <- pi_0_new
+
+
+likelihoods_new <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+new_likelihood <- (log(likelihoods_new) %*% freq_vec)[1]
+print(new_likelihood - old_likelihood)
+
+while ((new_likelihood - old_likelihood) > .001){
+  forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+  backw <- parApply(cl, ALTS_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+  likelihoods <- likelihoods_new
+
+  old_likelihood <- new_likelihood
+
+  init_new <- CalcInitialPattern(ALTS_pattern,freq_vec,pi_0,forw,backw,likelihoods)
+  tran_new <- CalcTransitionPattern(ALTS_pattern,tran,class,freq_vec,pi_0, forw, backw, likelihoods)
+  # class_new <- CalcClassificationPatternNoStayer(ALTS_pattern,class,freq_vec, forw, backw, likelihoods)
+
+  class_new <- CalcClassificationPattern(ALTS_pattern,class,freq_vec, forw, backw, likelihoods,pi_0)
+  pi_0_new <- CalcStayer(ALTS_pattern,init,tran,class,freq_vec,pi_0)
+
+
+  init <- init_new
+  tran <- tran_new
+  class <- class_new
+  pi_0_new <- pi_0
+
+  likelihoods_new <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+  new_likelihood <- (log(likelihoods_new) %*% freq_vec)[1]
+  print(new_likelihood - old_likelihood)
+}
+
+
+stopCluster(cl)
+
+```

@@ -1,0 +1,179 @@
+---
+title: "Data Setup"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+StateCalculator <- function(val1, val2, val3){
+  if (!is.na(val1) & !is.na(val2) & !is.na(val3)){
+    return(c(4 * val1 + 2 * val2 + val3))
+  } else if (!is.na(val1) & !is.na(val2) & is.na(val3)){
+    if(val1 == 0 & val2 == 0){
+      return(0)
+    }
+    return(c(4 * val1 + 2 * val2, 4 * val1 + 2 * val2 + 1))
+  } else if (!is.na(val1) & is.na(val2) & !is.na(val3)){
+    return(c(4 * val1 + val3, 4 * val1 + 2 + val3))
+  } else if (is.na(val1) & !is.na(val2) & !is.na(val3)){
+    return(c(2 * val2 + val3, 4 + 2 * val2 + val3, 8 + 2 * val2 + val3))
+  } else if (!is.na(val1) & is.na(val2) & is.na(val3)){
+    return(c(4 * val1, 4 * val1 + 1, 4 * val1 + 2, 4 * val1 + 3))
+  }else if (is.na(val1) & !is.na(val2) & is.na(val3)){
+    return(c(2 * val2, 2 * val2 + 1, 2 * val2 + 4, 2 * val2 + 5, 2 * val2 + 8, 2 * val2 + 9))
+  }else if (is.na(val1) & is.na(val2) & !is.na(val3)){
+    return(c(val3, val3 + 2, val3 + 4, val3 + 6, val3 + 8, val3 + 10))
+  } else {
+    return(NA)
+  }
+}
+
+```
+
+```{r}
+#3 -> (1,2)
+IntroducePersistence <- function(hpv){
+  for (i in 1:dim(hpv)[1]){
+    for (j in 1:dim(hpv)[2]){
+      if (!is.na(hpv[i,j])){
+        if (j == 1){hpv[i,j] <- persitenceHelper(hpv[i,j], NA, NA)}
+        else {hpv[i,j] <- persitenceHelper(hpv[i,j], hpv[i,j-1], NA)}
+      }
+    }
+  }
+  
+  hpv_pers <- array(NA, dim = c(dim(hpv)[1], dim(hpv)[2], 3))
+  for (i in 1:dim(hpv)[1]){
+    for (j in 1:dim(hpv)[2]){
+      if (!is.na(hpv[i,j])){
+        if (hpv[i,j] < 3){hpv_pers[i,j,1] <- hpv[i,j]}
+        else if (hpv[i,j] == 3){
+          hpv_pers[i,j,1] <- 1
+          hpv_pers[i,j,2] <- 2
+        }
+      }
+    }
+  }
+  return(list(hpv_pers,hpv))
+}
+```
+
+```{r}
+persitenceHelper <- function(hpv_val, one_back, two_back){
+  if (hpv_val == 0){return(0)}
+  
+  else if (!is.na(one_back)){
+    if (one_back == 0){return(1)}
+    else if (one_back == 1){return(2)} 
+    else if (one_back == 2){return(2)} 
+    else if (one_back == 3){return(2)}
+  }
+  else{return(3)}
+  
+}
+```
+
+```{r}
+Combiner <- function(hpv, cyt, copa){
+  full_data <- array(NA, dim = c(dim(hpv)[1], dim(hpv)[2], 8))
+  for (i in 1:dim(hpv)[1]){
+    for (j in 1:dim(hpv)[2]){
+      vals <- c()
+      num_of_hpv <- sum(!is.na(hpv[i,j,]))
+      
+      if (num_of_hpv == 0 | num_of_hpv == 1){
+        vals <- StateCalculator(hpv[i,j,1], cyt[i,j], copa[i,j])
+      } else {
+        for (val_index in 1:num_of_hpv){
+          vals <- c(vals, StateCalculator(hpv[i,j,val_index], cyt[i,j], copa[i,j]))
+          vals <- sort(unique(vals))
+        }
+      }
+        
+      for (part_val in 1:length(vals)){
+        full_data[i,j,part_val] <- vals[part_val]
+      }
+    }
+  }
+  return(full_data)
+}
+```
+
+
+```{r}
+# setwd("..")
+ALTS_og <- read.csv("lsil.risk.file.y2018m10d17.csv")
+ALTS_og <- ALTS_og[,c(1,6,7,8,9)]
+for (i in 1:dim(ALTS_og)[1]){
+  
+  if (!is.na(ALTS_og[i,3])){
+    if (ALTS_og[i,3] > 0){
+      ALTS_og[i,3] <- 1
+    } else if (ALTS_og[i,3] < 0){
+      ALTS_og[i,3] <- NA
+    }
+  }
+  
+  if (!is.na(ALTS_og[i,4])){
+    if (ALTS_og[i,4] < 0){
+      ALTS_og[i,4] <- NA
+    } else if (ALTS_og[i,4] < 5){
+      ALTS_og[i,4] <- 0
+    } else {
+      ALTS_og[i,4] <- 1
+    }
+  }
+}
+
+n <- length(unique(ALTS_og[,1]))
+max_time <- 5
+
+hpv <- matrix(NA,n,max_time)
+cyt <- matrix(NA,n,max_time)
+copa <- matrix(NA,n,max_time)
+real_i <- 0
+ind <- ""
+Censoring <- F
+for (i in 1:dim(ALTS_og)[1]){
+  
+  if (ind != ALTS_og[i,1]){
+    ind <- ALTS_og[i,1]
+    real_i <- real_i + 1
+    Censoring <- F
+  }
+  
+  real_time <- (ALTS_og[i,2] %/% 6) + 1 
+  
+  cyt_val <- ALTS_og[i,3]
+  copa_val <- ALTS_og[i,4]
+  hpv_val <- ALTS_og[i,5]
+  
+  if(Censoring == T){
+    hpv_val <- NA
+    cyt_val <- NA
+    copa_val <- NA
+  }
+  
+  hpv[real_i,real_time] <- hpv_val
+  cyt[real_i,real_time] <- cyt_val
+  copa[real_i,real_time] <- copa_val
+  
+  if (!is.na(ALTS_og[i,4])){
+    if (ALTS_og[i,4] == 1){
+      Censoring <- T
+    }
+  }
+}
+
+hpv_og <- hpv
+hpvs <- IntroducePersistence(hpv)
+hpv_pers <- hpvs[[1]]
+hpv <- hpvs[[2]]
+ALTS <- Combiner(hpv_pers,cyt,copa)
+
+```
+
+
