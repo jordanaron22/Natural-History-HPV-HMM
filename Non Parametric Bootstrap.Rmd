@@ -1,0 +1,155 @@
+---
+title: "Non Parametric Bootstrap"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+ClassHC <- function(){
+  class_hc <- matrix(0,16,16)
+  for (i in 1:16){
+    if ((i-1) %% 2 == 0){
+      class_hc[i,i] <- jitter(.98, amount = .1)
+      if (class_hc[i,i] > 1){
+        class_hc[i,i] <- .99
+      }
+      if ((((i-1) %% 4) %/% 2) == 0){
+        class_hc[i,i+2] <- 1 - class_hc[i,i]
+      }  else {
+        class_hc[i,i-2] <- 1 - class_hc[i,i]
+      }
+    }else {
+      class_hc[i,i] <- jitter(.95, amount = .1)
+      if (class_hc[i,i] > 1){
+        class_hc[i,i] <- .97
+      }
+      if ((((i-1) %% 4) %/% 2) == 0){
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i+1] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i+2] <- (1 - class_hc[i,i]) / 3
+      } else {
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i-2] <- (1 - class_hc[i,i]) / 3
+        class_hc[i,i-3] <- (1 - class_hc[i,i]) / 3
+      }
+    }
+  }
+  return(class_hc)
+}
+```
+
+```{r}
+library(parallel)
+library(foreach)
+current_data <- data_obs_comp
+n1 <- dim(current_data)[1]
+n2 <- dim(current_data)[2]
+n3 <- dim(current_data)[3]
+
+boot_sample  <- array(NA, dim = c(n1, n2, n3))
+
+boot_ind_list <- sample(1:n1,n1, replace = T)
+for (i in 1:n1){
+  boot_sample[i,,] <- current_data[boot_ind_list[i],,]
+}
+
+########
+
+all_patterns <- GetPatterns(boot_sample)
+unique_patterns <- as.data.frame(table(all_patterns), stringsAsFactors = F)
+Bootstrap_pattern_list <- Pattern2Data(unique_patterns)
+
+boot_pattern <- Bootstrap_pattern_list[[1]]
+boot_freq_vec_sim <- Bootstrap_pattern_list[[2]]
+
+
+# init_count <- InitialProb(boot_pattern,boot_freq_vec_sim)
+# init <- init_count/(sum(init_count))
+# init <- jitter(init, amount = .15)
+# init[init < 0 ] <- 0
+# init <- init + .01
+# init <- init/sum(init)
+init <- init_true
+
+# tran_count <- TransitionProb(boot_pattern,boot_freq_vec_sim)
+# tran <- Normalize(tran_count)
+# tran <- jitter(tran, amount = .15)
+# tran[tran < 0 ] <- 0
+# tran <- tran + .01
+# tran[1:4,9:16] <- 0
+# tran[5:8,5:8] <- 0
+# tran[5:8,13:16] <- 0
+# tran[9:12,5:12] <- 0
+# tran[13:16,5:12] <- 0
+# tran <- Normalize(tran)
+tran <- tran_true
+
+# class_og <- ClassHC()
+class_og <- class_true
+
+class <- class_og
+
+pi_0 <- 0
+
+cl <- makeCluster(8)
+clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
+clusterExport(cl, c("GetAllPossibilitiesBackw"))
+clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
+
+
+
+forw <- parApply(cl, boot_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+backw <- parApply(cl, boot_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+likelihoods <- parApply(cl, boot_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+old_likelihood <- (log(likelihoods) %*% boot_freq_vec_sim)[1]
+
+init_new <- CalcInitialPattern(boot_pattern,boot_freq_vec_sim,pi_0,forw,backw,likelihoods)
+tran_new <- CalcTransitionPattern(boot_pattern,tran,class,boot_freq_vec_sim,pi_0, forw, backw, likelihoods)
+class_new <- CalcClassificationPatternNoStayer(boot_pattern,class,boot_freq_vec_sim, forw, backw, likelihoods)
+
+init <- init_new
+tran <- tran_new
+class <- class_new
+
+
+likelihoods_new <- parApply(cl, boot_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+new_likelihood <- (log(likelihoods_new) %*% boot_freq_vec_sim)[1]
+print(new_likelihood - old_likelihood)
+
+while ((new_likelihood - old_likelihood) > .001){
+  forw <- parApply(cl, boot_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+  backw <- parApply(cl, boot_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+  likelihoods <- likelihoods_new
+
+  old_likelihood <- new_likelihood
+  pi_0_new <- CalcStayer(boot_pattern,init,tran,class,boot_freq_vec_sim,pi_0)
+  init_new <- CalcInitialPattern(boot_pattern,boot_freq_vec_sim,pi_0,forw,backw,likelihoods)
+  tran_new <- CalcTransitionPattern(boot_pattern,tran,class,boot_freq_vec_sim,pi_0, forw, backw, likelihoods)
+  class_new <- CalcClassificationPatternNoStayer(boot_pattern,class,boot_freq_vec_sim, forw, backw, likelihoods)
+
+
+
+  pi_0 <- pi_0_new
+  init <- init_new
+  tran <- tran_new
+  class <- class_new
+
+  likelihoods_new <- parApply(cl, boot_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+  new_likelihood <- (log(likelihoods_new) %*% boot_freq_vec_sim)[1]
+  print(new_likelihood - old_likelihood)
+}
+
+stopCluster(cl)
+```
+
+
+
+
+
+
