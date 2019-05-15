@@ -1,0 +1,108 @@
+---
+title: "Likelihood Surface Viz"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+max_ind <- which(likelihood_array > -15640)
+
+max_ind2_upper <- which(likelihood_array > -15645.3)
+max_ind2_lower <- which(likelihood_array < -15645.15)
+max_ind2 <- intersect(max_ind2_upper,max_ind2_lower)
+
+
+
+init_init_array_max <- init_init_array[1,,max_ind]
+tran_init_array_max <- tran_init_array[,,max_ind]
+class_init_array_max <- class_init_array[,,max_ind]
+
+init_est_array_max <- init_est_array[1,,max_ind]
+tran_est_array_max <- tran_est_array[,,max_ind]
+class_est_array_max <- class_est_array[,,max_ind]
+
+init_init_array_max2 <- init_init_array[1,,max_ind2]
+tran_init_array_max2 <- tran_init_array[,,max_ind2]
+class_init_array_max2 <- class_init_array[,,max_ind2]
+
+init_est_array_max2 <- init_est_array[1,,max_ind2]
+tran_est_array_max2 <- tran_est_array[,,max_ind2]
+class_est_array_max2 <- class_est_array[,,max_ind2]
+```
+
+```{r}
+states <- 12
+for (i in 1:states){
+  plot(init_init_array_max[i,], likelihood_array[max_ind])
+}
+```
+
+```{r}
+states <- 12
+for (i in 1:states){
+  plot(tran_init_array_max2[9,i,], likelihood_array[max_ind2])
+}
+```
+
+```{r}
+states <- 12
+for (i in 1:states){
+  boxplot(init_init_array_max[i,],init_init_array_max2[i,])
+}
+
+```
+
+```{r}
+states <- 12
+for (i in 1:states){
+  state <- 5
+  boxplot(tran_init_array_max[state,i,],tran_init_array_max2[state,i,])
+}
+
+```
+
+```{r}
+library(parallel)
+library(foreach)
+library(tictoc)
+library(doParallel)
+library(plotly)
+
+likelihoods <- apply(ALTS_pattern,1,FUN = CalcIndLikelihood, est_init, est_tran, est_class,est_pi)
+og_log_like <- (log(likelihoods) %*% freq_vec)[1] 
+
+x_grid <- seq(.908,.909,.0001)
+y_grid <- seq(.0691,.0701,.0001)
+xy_grid <-  expand.grid(x = x_grid, y = y_grid)
+est_new_tran <- est_tran
+est_new_pi <- est_pi
+
+no_cores <- 4
+cl <- makeCluster(no_cores)
+
+clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
+clusterExport(cl, c("GetAllPossibilitiesBackw"))
+clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
+
+for (i in 1:dim(xy_grid)[1]){
+  
+  est_new_tran[1,1] <- xy_grid[i,1]
+  est_new_pi <- xy_grid[i,2]
+  
+  est_new_tran <- Normalize(est_new_tran)
+  
+  likelihoods <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, est_init, est_new_tran, est_class,est_new_pi)
+  log_like <- (log(likelihoods) %*% freq_vec)[1] 
+  
+  xy_grid[i,3] <- log_like
+}
+
+stopCluster(cl)
+plot_ly(x = xy_grid[,1], y = xy_grid[,2], z = xy_grid[,3], type = "contour")
+
+# plot_ly(x = xy_grid1[,1], y = xy_grid1[,2], z = xy_grid1[,3], type = "contour")
+```
+
