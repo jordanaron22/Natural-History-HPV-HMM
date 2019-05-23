@@ -8,7 +8,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, echo = FALSE, include = FALSE, eval = FALSE}
-setwd("Data/Real/12/No Class 11 33//")
+setwd("Data/Real/12/Everything from Iden/")
 states <- 12
 list_of_names <- list.files()
 reps <- length(list_of_names)
@@ -25,6 +25,7 @@ class_est_array <- array(0,dim = c(states,states,reps))
 likelihood_array <- numeric(reps)
 pi_init_array <- numeric(reps)
 pi_est_array <- numeric(reps)
+time_array <- numeric(reps)
 
 init_init_list <- vector("list", length = reps)
 tran_init_list <- vector("list", length = reps)
@@ -42,6 +43,7 @@ for (name in list_of_names){
   init_parameters <- to_save[[1]]
   est_parameters <- to_save[[2]]
   likelihood_array[count] <- to_save[[3]]
+  # time_array[count] <- to_save[[4]] / (60 * 60 * 24)
   
   pi_init_array[count] <- init_parameters[[4]]
   pi_est_array[count] <- est_parameters[[4]]
@@ -78,6 +80,24 @@ for (name in list_of_names){
 
 
 
+```
+
+```{r}
+variance <- F
+if (variance == T){
+  init_var <- numeric(states)
+  tran_var <- matrix(0,states,states)
+  class_var <- matrix(0,states,states)
+  
+  for (i in 1:states){
+    init_var[i] <- var(init_est_array[1,i,])
+    for (j in 1:states){
+      tran_var[i,j] <- var(tran_est_array[i,j,])
+      class_var[i,j] <- var(class_est_array[i,j,])
+      
+    }
+  }
+}
 ```
 
 ```{r, echo = FALSE, fig.width=15, fig.height=15}
@@ -164,7 +184,9 @@ state_labels <- c(0:11)
 
 
 first <- which.max(likelihood_array)
-# second <- 163
+
+second <- likelihood_array[which(likelihood_array < -15641)]
+second <- which.max(second)
 
 est_init <- init_est_array[1,,first]
 est_tran <- tran_est_array[,,first]
@@ -192,11 +214,17 @@ ClassificationHeatmap(est_class, state_labels, state_labels) + ggtitle("Classifi
 
 ```{r}
 
-GenerateInitTable(init_est_array[1,,first], init_est_array[1,,first], "Initial (Median")
+# GenerateInitTable(init_est_array[1,,first], init_est_array[1,,first], "Initial (Median")
+# 
+# GenerateTable(tran_est_array[,,first], tran_est_array[,,first],"Transition (Median)")
+# 
+# GenerateTable(class_est_array[,,first], class_est_array[,,first],"Classification (Median)")
 
-GenerateTable(tran_est_array[,,first], tran_est_array[,,first],"Transition (Median)")
+GenerateInitTable(init_est_array[1,,first], sqrt(init_var), "Initial (Median")
 
-GenerateTable(class_est_array[,,first], class_est_array[,,first],"Classification (Median)")
+GenerateTable(tran_est_array[,,first], sqrt(tran_var),"Transition (Median)")
+
+GenerateTable(class_est_array[,,first], sqrt(class_var),"Classification (Median)")
 ```
 
 ```{r}
@@ -308,7 +336,7 @@ p
 p <- plot_ly(x = tran_est_array[3,3,], y = class_est_array[3,3,], z = likelihood_array) %>%
   add_markers() %>%
   layout(scene = list(xaxis = list(title = '22 Tran'),
-                     yaxis = list(title = '2 State Class'),
+                     yaxis = list(title = State Class'),
                      zaxis = list(title = 'Likelihood')))
 p
 ```
