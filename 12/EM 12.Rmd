@@ -551,7 +551,7 @@ CalcTransitionPattern <- function(data, tran,class,freq_vec, pi_0, forw, backw, 
         }
       }
       
-      for(gX in possible_x){
+      for(gX in possible_x){ 
         
         for (initial_state in possible_initial_states){
           if (initial_state < 4){possible_new_states <- c(1:8)}
