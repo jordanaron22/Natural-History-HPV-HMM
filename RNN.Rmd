@@ -1,0 +1,61 @@
+---
+title: "RNN"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+states <- 12
+time <- 5
+
+State2VectorInd <- function(ALTS_ind){
+  vector <- numeric(states * time)
+  for (i in 1:dim(ALTS_ind)[1]){
+    for (j in 1:dim(ALTS_ind)[2]){
+      normalizing_factor <- sum(!is.na(ALTS_ind[i,]))
+      if (!is.na(ALTS_ind[i,j]))
+        vector[((i - 1) * states) + ALTS_ind[i,j] + 1] <- 1/normalizing_factor
+    }
+  }
+  return(vector)
+}
+
+State2Vector <- function(ALTS){
+  input <- matrix(0,dim(ALTS)[1],states * time)
+  for (i in 1:dim(ALTS)[1]){
+    input[i,] <- State2VectorInd(ALTS[i,,])
+  }
+  return(input)
+}
+
+x_train <- State2Vector(data_obs_array)
+y_train <- State2Vector(data_true_array)
+```
+
+
+```{r}
+library(keras)
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = 256, activation = 'relu', input_shape = c(60)) %>%
+  layer_dropout(rate = 0.4) %>% 
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 60, activation = 'softmax')
+
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('accuracy')
+)
+
+history <- model %>% fit(
+  x_train, y_train, 
+  epochs = 30, batch_size = 128, 
+  validation_split = 0.2
+)
+```
+
