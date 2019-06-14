@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, echo = FALSE, include = FALSE, eval = FALSE}
 # setwd("Data/Sim/No Pers/")
-setwd("Data/Sim/ALTS/No Censor MS///")
+setwd("Paper/Data/Sim/Full Data/")
 states <- 12
 list_of_names <- list.files()
 reps <- length(list_of_names)
@@ -136,7 +136,7 @@ for (i in 1:states){
   init_true_count_med[i] <- median(init_true_count_array[1,i,])
   init_true_count_avg[i] <- mean(init_true_count_array[1,i,])
   
-  init_var[i] <- var(init_true_array[1,i,])
+  init_var[i] <- var(init_array[1,i,])
   
   
   for (j in 1:states){
@@ -156,8 +156,8 @@ for (i in 1:states){
     class_true_count_avg[i,j] <- mean(class_true_count_array[i,j,])
     
   
-    tran_var[i,j] <- var(tran_true_array[i,j,])
-    class_var[i,j] <- var(class_true_array[i,j,])
+    tran_var[i,j] <- var(tran_array[i,j,])
+    class_var[i,j] <- var(class_array[i,j,])
     
   }
 }
@@ -184,11 +184,11 @@ class_med_adj <- class_med
 for (i in 1:dim(class_true_count_med)[1]){
   for (j in 1:dim(class_true_count_med)[2]){
     
-    if (class_true_count_med[i,j] < 50){
+    if (class_true_count_med[i,j] < 61){
       class_med_adj[i,j] <- class_true_med[i,j]
     }
     
-    if (tran_true_count_med[i,j] < 50){
+    if (tran_true_count_med[i,j] < 61){
       tran_med_adj[i,j] <- tran_true_med[i,j]
     }
   }
@@ -231,23 +231,25 @@ GenerateInitTable <- function(init, init_true, init_count, title){
 ```
 
 ```{r}
-GenerateTable <- function(mean_mat,truth_mat,count_mat,title){
+GenerateTable <- function(mean_mat,truth_mat,var_mat,count_mat,title){
   library(knitr)
   library(kableExtra)
-  row_names <- c("Median", "Truth", "Count")
+  row_names <- c("Median", "Truth", "Std Dev", "Count")
   
   length_of_ind <- dim(mean_mat)[1]
-  combined_mat <- matrix(0,length_of_ind*3, length_of_ind)
+  combined_mat <- matrix(0,length_of_ind*4, length_of_ind)
   
-  for (i in 1:(length_of_ind * 3)){
-    which_one <- i %% 3
-    true_ind <- ceiling(i/3)
+  for (i in 1:(length_of_ind * 4)){
+    which_one <- i %% 4
+    true_ind <- ceiling(i/4)
     if (which_one == 1){
       combined_mat[i,] <- mean_mat[true_ind,]
     } else if (which_one == 2){
       combined_mat[i,] <- truth_mat[true_ind,]
     } else if (which_one == 0){
       combined_mat[i,] <- count_mat[true_ind,]
+    } else if (which_one == 3){
+      combined_mat[i,] <- var_mat[true_ind,]
     }
   }
   
@@ -257,18 +259,18 @@ GenerateTable <- function(mean_mat,truth_mat,count_mat,title){
   
   kable(combined_mat, caption = title) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T) %>%
-    group_rows("State 0",1,3) %>%
-    group_rows("State 1",4,6) %>%
-    group_rows("State 2",7,9) %>%
-    group_rows("State 3",10,12) %>%
-    group_rows("State 4",13,15) %>%
-    group_rows("State 5",16,18) %>%
-    group_rows("State 6",19,21) %>%
-    group_rows("State 7",22,24) %>%
-    group_rows("State 8",25,27) %>%
-    group_rows("State 9",28,30) %>%
-    group_rows("State 10",31,33) %>%
-    group_rows("State 11",34,36) 
+    group_rows("State 0",1,4) %>%
+    group_rows("State 1",5,8) %>%
+    group_rows("State 2",9,12) %>%
+    group_rows("State 3",13,16) %>%
+    group_rows("State 4",17,20) %>%
+    group_rows("State 5",21,24) %>%
+    group_rows("State 6",25,28) %>%
+    group_rows("State 7",29,32) %>%
+    group_rows("State 8",33,36) %>%
+    group_rows("State 9",37,40) %>%
+    group_rows("State 10",41,44) %>%
+    group_rows("State 11",45,48) 
     
   
     
@@ -280,15 +282,18 @@ GenerateTable <- function(mean_mat,truth_mat,count_mat,title){
 state_labels <- c(0:11)
 pi_med
 pi_true_med
+sum((init_avg - init_true_avg)^2)/12
+sum((tran_avg - tran_true_avg)^2)/144
+sum((class_avg - class_true_avg)^2)/144
 
 
 ClassificationHeatmap(tran_med - tran_true_med, state_labels, state_labels) + ggtitle("Transition Residuals (median)")
 ClassificationHeatmap(tran_avg - tran_true_avg, state_labels, state_labels) + ggtitle("Transition Residuals (mean)")
 ClassificationHeatmap(class_med - class_true_med, state_labels, state_labels) + ggtitle("Classification Residuals (median)")
 ClassificationHeatmap(class_avg - class_true_avg, state_labels, state_labels) + ggtitle("Classification Residuals (mean)")
-GenerateInitTable(init_med, init_true_med, init_true_count_med, "Initial (Median")
-GenerateTable(tran_med, tran_true_med, tran_true_count_med,"Transition (Median)")
-GenerateTable(class_med, class_true_med,class_true_count_med,"Classification (Median)")
+GenerateInitTable(init_avg, init_true_avg, init_true_count_med, "Initial (Median")
+GenerateTable(tran_avg, tran_true_avg, sqrt(tran_var), tran_true_count_med,"Transition (Median)")
+GenerateTable(class_avg, class_true_avg, sqrt(class_var), class_true_count_med,"Classification (Median)")
 ```
 
 ```{r}
@@ -324,7 +329,7 @@ for (i in 1:dim(tran_med)[1]){
 ```{r}
 for (i in 1:dim(class_med)[1]){
   for (j in 1:dim(class_med)[2]){
-    if (abs(class_med[i,j] - class_true_med[i,j]) > .02){
+    if (abs(class_med[i,j] - class_true_med[i,j]) > .05){
       iqr1 <- IQR(class_array[i,j,])
       iqr2 <- IQR(class_true_array[i,j,])
       

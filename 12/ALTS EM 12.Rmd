@@ -90,6 +90,48 @@ pi_0 <- pi_0_og
 ```
 
 ```{r}
+set.seed(6)
+setwd("..")
+load("parameters.rda")
+
+init <- IntroduceNoise(to_save[[2]][[1]],.075)
+tran <- IntroduceNoise(to_save[[2]][[2]],.075)
+class <- IntroduceNoise(to_save[[2]][[3]],.075)
+pi_0 <- IntroduceNoise(to_save[[2]][[4]],.07)
+
+class_og <- class
+pi_0_og <- pi_0
+init_og <- init
+tran_og <- tran
+```
+
+```{r}
+no_cores <- 4
+cl <- makeCluster(no_cores)
+
+clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
+clusterExport(cl, c("GetAllPossibilitiesBackw"))
+clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
+
+forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 1, init,tran,class)
+backw <- parApply(cl, ALTS_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+likelihoods <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+
+old_likelihood <- (log(likelihoods) %*% freq_vec)[1]
+
+init_new <- CalcInitialPattern(ALTS_pattern,freq_vec,pi_0,forw,backw,likelihoods)
+
+init <- init_new
+likelihoods_new <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+new_likelihood <- (log(likelihoods_new) %*% freq_vec)[1]
+print(new_likelihood - old_likelihood)
+stopCluster(cl)
+
+```
+
+```{r}
 library(parallel)
 library(foreach)
 library(tictoc)
@@ -102,7 +144,7 @@ clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
 clusterExport(cl, c("GetAllPossibilitiesBackw"))
 clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
 
-forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 1, init,tran,class)
 backw <- parApply(cl, ALTS_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
 likelihoods <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
 
@@ -110,17 +152,17 @@ likelihoods <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, 
 old_likelihood <- (log(likelihoods) %*% freq_vec)[1]
 
 init_new <- CalcInitialPattern(ALTS_pattern,freq_vec,pi_0,forw,backw,likelihoods)
-tran_new <- CalcTransitionPattern(ALTS_pattern,tran,class,freq_vec,pi_0, forw, backw, likelihoods)
+# tran_new <- CalcTransitionPattern(ALTS_pattern,tran,class,freq_vec,pi_0, forw, backw, likelihoods)
 # class_new <- CalcClassificationPatternNoStayer(ALTS_pattern,class,freq_vec, forw, backw, likelihoods)
 
-class_new <- CalcClassificationPattern(ALTS_pattern,class,freq_vec, forw, backw, likelihoods,pi_0)
-pi_0_new <- CalcStayer(ALTS_pattern,init,tran,class,freq_vec,pi_0)
+# class_new <- CalcClassificationPattern(ALTS_pattern,class,freq_vec, forw, backw, likelihoods,pi_0)
+# pi_0_new <- CalcStayer(ALTS_pattern,init,tran,class,freq_vec,pi_0)
 
 
 init <- init_new
-tran <- tran_new
-class <- class_new
-pi_0 <- pi_0_new
+# tran <- tran_new
+# class <- class_new
+# pi_0 <- pi_0_new
 
 
 likelihoods_new <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)

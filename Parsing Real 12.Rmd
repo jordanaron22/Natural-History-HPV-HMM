@@ -8,7 +8,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, echo = FALSE, include = FALSE, eval = FALSE}
-setwd("Data/Real/12/Everything from Iden/")
+setwd("Paper/Data/Bootstrap/")
 states <- 12
 list_of_names <- list.files()
 reps <- length(list_of_names)
@@ -183,22 +183,25 @@ GenerateTable <- function(mean_mat,var_mat,title){
 state_labels <- c(0:11)
 
 
-first <- which.max(likelihood_array)
-
-second <- likelihood_array[which(likelihood_array < -15641)]
-second <- which.max(second)
-
-est_init <- init_est_array[1,,first]
-est_tran <- tran_est_array[,,first]
-est_class <- class_est_array[,,first]
-est_pi <- pi_est_array[first]
-
+# first <- which.max(likelihood_array)
+# 
+# 
+# est_init <- init_est_array[1,,first]
+# est_tran <- tran_est_array[,,first]
+# est_class <- class_est_array[,,first]
+# est_pi <- pi_est_array[first]
+# 
 # init <- est_init
 # tran <- est_tran
 # class <- est_class
 # pi_0 <- est_pi
-
+# 
 # parameters <- list(est_init, est_tran,est_class, est_pi)
+load("parameters.rda")
+est_init <- to_save[[2]][[1]]
+est_tran <- to_save[[2]][[2]]
+est_class <- to_save[[2]][[3]]
+est_pi <- to_save[[2]][[4]]
 
 
 
@@ -214,64 +217,37 @@ ClassificationHeatmap(est_class, state_labels, state_labels) + ggtitle("Classifi
 
 ```{r}
 
-# GenerateInitTable(init_est_array[1,,first], init_est_array[1,,first], "Initial (Median")
+# GenerateInitTable(est_init, est_init, "Initial (Median")
 # 
-# GenerateTable(tran_est_array[,,first], tran_est_array[,,first],"Transition (Median)")
+# GenerateTable(est_tran, est_tran,"Transition (Median)")
 # 
-# GenerateTable(class_est_array[,,first], class_est_array[,,first],"Classification (Median)")
+# GenerateTable(est_class, est_class,"Classification (Median)")
 
-GenerateInitTable(init_est_array[1,,first], sqrt(init_var), "Initial (Median")
+GenerateInitTable(est_init, sqrt(init_var), "Initial")
 
-GenerateTable(tran_est_array[,,first], sqrt(tran_var),"Transition (Median)")
+GenerateTable(est_tran, sqrt(tran_var),"Transition")
 
-GenerateTable(class_est_array[,,first], sqrt(class_var),"Classification (Median)")
+GenerateTable(est_class, sqrt(class_var),"Classification")
 ```
 
-```{r}
-hist(tran_est_array[3,4,])
-hist(tran_est_array[7,11,])
-hist(tran_est_array[9,1,])
-hist(tran_est_array[9,4,])
-```
-
-```{r}
-max_indices <- which(likelihood_array > -15850)
-hist(tran_est_array[3,4,max_indices])
-hist(tran_est_array[7,11,max_indices])
-hist(tran_est_array[9,1,max_indices])
-hist(tran_est_array[9,4,max_indices])
-```
-
-
-```{r}
-hist(class_est_array[4,3,max_indices])
-
-hist(class_est_array[6,5,max_indices])
-hist(class_est_array[6,7,max_indices])
-
-hist(class_est_array[8,7,max_indices])
-hist(class_est_array[8,8,max_indices])
-
-hist(class_est_array[10,9,max_indices])
-```
 
 ```{r}
 library(kableExtra)
 
-init_hpv_neg <- sum(init_est_array[,,first][c(1:4)])
-init_hpv_pos1 <- sum(init_est_array[,,first][c(5:8)])
-init_hpv_pos2 <- sum(init_est_array[,,first][c(9:12)])
+init_hpv_neg <- sum(est_init[c(1:4)])
+init_hpv_pos1 <- sum(est_init[c(5:8)])
+init_hpv_pos2 <- sum(est_init[c(9:12)])
 init_hpv <- matrix(c(init_hpv_neg, init_hpv_pos1, init_hpv_pos2),1,3)
 colnames(init_hpv) <- c("HPV -", "HPV + ", "HPV ++")
 kable_styling(kable(init_hpv))
 
-init_cyt_neg <- sum(init_est_array[,,first][c(1,2,5,6,9,10)])
+init_cyt_neg <- sum(est_init[c(1,2,5,6,9,10)])
 init_cyt_pos <- 1 - init_cyt_neg
 init_cyt <- matrix(c(init_cyt_neg,init_cyt_pos),1,2)
 colnames(init_cyt) <- c("Cyt Negative", "Cyt Positive")
 kable_styling(kable(init_cyt))
 
-init_copa_neg <-  sum(init_est_array[,,first][c(1,3,5,7,9)])
+init_copa_neg <-  sum(est_init[c(1,3,5,7,9)])
 init_copa_pos <- 1 - init_copa_neg
 init_copa <- matrix(c(init_copa_neg, init_copa_pos),1,2)
 colnames(init_copa) <- c("Copa Negative", "Copa Positive")
@@ -279,65 +255,384 @@ kable_styling(kable(init_copa))
 ```
 
 ```{r}
-ind <- 1
+#Tran
+neg_hpv <- c(1,2,3,4)
+pos_hpv <- c(5,6,7,8)
+pos_pos_hpv <- c(9,10,11,12)
+hpv_marg <- matrix(0,3,3)
+hpv_marg[1,1] <- sum(est_tran[neg_hpv,neg_hpv])
+hpv_marg[1,2] <- sum(est_tran[neg_hpv,pos_hpv])
+hpv_marg[1,3] <- sum(est_tran[neg_hpv,pos_pos_hpv])
+hpv_marg[2,1] <- sum(est_tran[pos_hpv,neg_hpv])
+hpv_marg[2,2] <- sum(est_tran[pos_hpv,pos_hpv])
+hpv_marg[2,3] <- sum(est_tran[pos_hpv,pos_pos_hpv])
+hpv_marg[3,1] <- sum(est_tran[pos_pos_hpv,neg_hpv])
+hpv_marg[3,2] <- sum(est_tran[pos_pos_hpv,pos_hpv])
+hpv_marg[3,3] <- sum(est_tran[pos_pos_hpv,pos_pos_hpv])
+hpv_marg <- hpv_marg / rowSums(hpv_marg)
+colnames(hpv_marg) <- c("HPV -", "HPV +", "HPV ++")
+rownames(hpv_marg) <- c("HPV -", "HPV +", "HPV ++")
+kable_styling(kable(hpv_marg))
 
-plot(tran_est_array[ind,1,], likelihood_array)
-plot(tran_est_array[ind,2,], likelihood_array)
-plot(tran_est_array[ind,3,], likelihood_array)
-plot(tran_est_array[ind,4,], likelihood_array)
+neg_hpv_neg_cyt <- c(1,2)
+pos_hpv_neg_cyt <- c(5,6)
+pos_pos_hpv_neg_cyt <- c(9,10)
+hpv_marg <- matrix(0,3,3)
+hpv_marg[1,1] <- sum(est_tran[neg_hpv_neg_cyt,neg_hpv])
+hpv_marg[1,2] <- sum(est_tran[neg_hpv_neg_cyt,pos_hpv])
+hpv_marg[1,3] <- sum(est_tran[neg_hpv_neg_cyt,pos_pos_hpv])
+hpv_marg[2,1] <- sum(est_tran[pos_hpv_neg_cyt,neg_hpv])
+hpv_marg[2,2] <- sum(est_tran[pos_hpv_neg_cyt,pos_hpv])
+hpv_marg[2,3] <- sum(est_tran[pos_hpv_neg_cyt,pos_pos_hpv])
+hpv_marg[3,1] <- sum(est_tran[pos_pos_hpv_neg_cyt,neg_hpv])
+hpv_marg[3,2] <- sum(est_tran[pos_pos_hpv_neg_cyt,pos_hpv])
+hpv_marg[3,3] <- sum(est_tran[pos_pos_hpv_neg_cyt,pos_pos_hpv])
+hpv_marg <- hpv_marg / rowSums(hpv_marg)
+colnames(hpv_marg) <- c("HPV -", "HPV +", "HPV ++")
+rownames(hpv_marg) <- c("HPV - Cyt Neg", "HPV + Cyt Neg", "HPV ++ Cyt Neg")
+kable_styling(kable(hpv_marg))
 
-plot(tran_est_array[ind,5,], likelihood_array)
-plot(tran_est_array[ind,6,], likelihood_array)
-plot(tran_est_array[ind,7,], likelihood_array)
-plot(tran_est_array[ind,8,], likelihood_array)
+neg_hpv_pos_cyt <- c(3,4)
+pos_hpv_pos_cyt <- c(7,8)
+pos_pos_hpv_pos_cyt <- c(11,12)
+hpv_marg <- matrix(0,3,3)
+hpv_marg[1,1] <- sum(est_tran[neg_hpv_pos_cyt,neg_hpv])
+hpv_marg[1,2] <- sum(est_tran[neg_hpv_pos_cyt,pos_hpv])
+hpv_marg[1,3] <- sum(est_tran[neg_hpv_pos_cyt,pos_pos_hpv])
+hpv_marg[2,1] <- sum(est_tran[pos_hpv_pos_cyt,neg_hpv])
+hpv_marg[2,2] <- sum(est_tran[pos_hpv_pos_cyt,pos_hpv])
+hpv_marg[2,3] <- sum(est_tran[pos_hpv_pos_cyt,pos_pos_hpv])
+hpv_marg[3,1] <- sum(est_tran[pos_pos_hpv_pos_cyt,neg_hpv])
+hpv_marg[3,2] <- sum(est_tran[pos_pos_hpv_pos_cyt,pos_hpv])
+hpv_marg[3,3] <- sum(est_tran[pos_pos_hpv_pos_cyt,pos_pos_hpv])
+hpv_marg <- hpv_marg / rowSums(hpv_marg)
+colnames(hpv_marg) <- c("HPV -", "HPV +", "HPV ++")
+rownames(hpv_marg) <- c("HPV - Cyt Pos", "HPV + Cyt Pos", "HPV ++ Cyt Pos")
+kable_styling(kable(hpv_marg))
 
-# plot(tran_est_array[ind,9,], likelihood_array)
-# plot(tran_est_array[ind,10,], likelihood_array)
-# plot(tran_est_array[ind,11,], likelihood_array)
-# plot(tran_est_array[ind,12,], likelihood_array)
+neg_hpv_neg_hist <- c(1,3)
+pos_hpv_neg_hist <- c(5,7)
+pos_pos_hpv_neg_hist <- c(9,11)
+hpv_marg <- matrix(0,3,3)
+hpv_marg[1,1] <- sum(est_tran[neg_hpv_neg_hist,neg_hpv])
+hpv_marg[1,2] <- sum(est_tran[neg_hpv_neg_hist,pos_hpv])
+hpv_marg[1,3] <- sum(est_tran[neg_hpv_neg_hist,pos_pos_hpv])
+hpv_marg[2,1] <- sum(est_tran[pos_hpv_neg_hist,neg_hpv])
+hpv_marg[2,2] <- sum(est_tran[pos_hpv_neg_hist,pos_hpv])
+hpv_marg[2,3] <- sum(est_tran[pos_hpv_neg_hist,pos_pos_hpv])
+hpv_marg[3,1] <- sum(est_tran[pos_pos_hpv_neg_hist,neg_hpv])
+hpv_marg[3,2] <- sum(est_tran[pos_pos_hpv_neg_hist,pos_hpv])
+hpv_marg[3,3] <- sum(est_tran[pos_pos_hpv_neg_hist,pos_pos_hpv])
+hpv_marg <- hpv_marg / rowSums(hpv_marg)
+colnames(hpv_marg) <- c("HPV -", "HPV +", "HPV ++")
+rownames(hpv_marg) <- c("HPV - Hist Neg", "HPV + Hist Neg", "HPV ++ Hist Neg")
+kable_styling(kable(hpv_marg))
+
+neg_hpv_pos_hist <- c(2,4)
+pos_hpv_pos_hist <- c(6,8)
+pos_pos_hpv_pos_hist <- c(10,12)
+hpv_marg <- matrix(0,3,3)
+hpv_marg[1,1] <- sum(est_tran[neg_hpv_pos_hist,neg_hpv])
+hpv_marg[1,2] <- sum(est_tran[neg_hpv_pos_hist,pos_hpv])
+hpv_marg[1,3] <- sum(est_tran[neg_hpv_pos_hist,pos_pos_hpv])
+hpv_marg[2,1] <- sum(est_tran[pos_hpv_pos_hist,neg_hpv])
+hpv_marg[2,2] <- sum(est_tran[pos_hpv_pos_hist,pos_hpv])
+hpv_marg[2,3] <- sum(est_tran[pos_hpv_pos_hist,pos_pos_hpv])
+hpv_marg[3,1] <- sum(est_tran[pos_pos_hpv_pos_hist,neg_hpv])
+hpv_marg[3,2] <- sum(est_tran[pos_pos_hpv_pos_hist,pos_hpv])
+hpv_marg[3,3] <- sum(est_tran[pos_pos_hpv_pos_hist,pos_pos_hpv])
+hpv_marg <- hpv_marg / rowSums(hpv_marg)
+colnames(hpv_marg) <- c("HPV -", "HPV +", "HPV ++")
+rownames(hpv_marg) <- c("HPV - Hist Pos", "HPV + Hist Pos", "HPV ++ Hist Pos")
+kable_styling(kable(hpv_marg))
+
+neg_cyt <- c(1,2,5,6,9,10)
+pos_cyt <- c(3,4,7,8,11,12)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_tran[neg_cyt,neg_cyt])
+cyt_marg[1,2] <- sum(est_tran[neg_cyt,pos_cyt])
+cyt_marg[2,1] <- sum(est_tran[pos_cyt,neg_cyt])
+cyt_marg[2,2] <- sum(est_tran[pos_cyt,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+rownames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+kable_styling(kable(cyt_marg))
+
+neg_cyt_neg_hist <- c(1,5,9)
+pos_cyt_neg_hist <- c(3,7,11)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_tran[neg_cyt_neg_hist,neg_cyt])
+cyt_marg[1,2] <- sum(est_tran[neg_cyt_neg_hist,pos_cyt])
+cyt_marg[2,1] <- sum(est_tran[pos_cyt_neg_hist,neg_cyt])
+cyt_marg[2,2] <- sum(est_tran[pos_cyt_neg_hist,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+rownames(cyt_marg) <- c("CYT Neg Hist Neg", "CYT Pos Hist Neg")
+kable_styling(kable(cyt_marg))
+
+neg_cyt_pos_hist <- c(2,6,10)
+pos_cyt_pos_hist <- c(4,8,12)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_tran[neg_cyt_pos_hist,neg_cyt])
+cyt_marg[1,2] <- sum(est_tran[neg_cyt_pos_hist,pos_cyt])
+cyt_marg[2,1] <- sum(est_tran[pos_cyt_pos_hist,neg_cyt])
+cyt_marg[2,2] <- sum(est_tran[pos_cyt_pos_hist,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+rownames(cyt_marg) <- c("CYT Neg Hist Pos", "CYT Pos Hist Pos")
+kable_styling(kable(cyt_marg))
+
+neg_cyt_neg_hpv <- c(1,2)
+pos_cyt_neg_hpv <- c(3,4)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_tran[neg_cyt_neg_hpv,neg_cyt])
+cyt_marg[1,2] <- sum(est_tran[neg_cyt_neg_hpv,pos_cyt])
+cyt_marg[2,1] <- sum(est_tran[pos_cyt_neg_hpv,neg_cyt])
+cyt_marg[2,2] <- sum(est_tran[pos_cyt_neg_hpv,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("Cyt Neg", "Cyt Pos")
+rownames(cyt_marg) <- c("Cyt Neg HPV -", "Cyt Pos HPV -")
+kable_styling(kable(cyt_marg))
+
+neg_cyt_pos_hpv <- c(5,6)
+pos_cyt_pos_hpv <- c(7,8)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_tran[neg_cyt_pos_hpv,neg_cyt])
+cyt_marg[1,2] <- sum(est_tran[neg_cyt_pos_hpv,pos_cyt])
+cyt_marg[2,1] <- sum(est_tran[pos_cyt_pos_hpv,neg_cyt])
+cyt_marg[2,2] <- sum(est_tran[pos_cyt_pos_hpv,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("Cyt Neg", "Cyt Pos")
+rownames(cyt_marg) <- c("Cyt Neg HPV +", "Cyt Pos HPV +")
+kable_styling(kable(cyt_marg))
+
+neg_cyt_pos_pos_hpv <- c(9,10)
+pos_cyt_pos_pos_hpv <- c(11,12)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_tran[neg_cyt_pos_pos_hpv,neg_cyt])
+cyt_marg[1,2] <- sum(est_tran[neg_cyt_pos_pos_hpv,pos_cyt])
+cyt_marg[2,1] <- sum(est_tran[pos_cyt_pos_pos_hpv,neg_cyt])
+cyt_marg[2,2] <- sum(est_tran[pos_cyt_pos_pos_hpv,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("Cyt Neg", "Cyt Pos")
+rownames(cyt_marg) <- c("Cyt Neg HPV ++", "Cyt Pos HPV ++")
+kable_styling(kable(cyt_marg))
+
+neg_hist <- c(1,3,5,7,9,11)
+pos_hist <- c(2,4,6,8,10,12)
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_tran[neg_hist,neg_hist])
+hist_marg[1,2] <- sum(est_tran[neg_hist,pos_hist])
+hist_marg[2,1] <- sum(est_tran[pos_hist,neg_hist])
+hist_marg[2,2] <- sum(est_tran[pos_hist,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+names <- c("Hist Neg", "Hist Pos")
+colnames(hist_marg) <- names
+rownames(hist_marg) <- names
+kable_styling(kable(hist_marg))
+
+neg_hist_neg_cyt <- c(1,5,9)
+pos_hist_neg_cyt <- c(2,6,10)
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_tran[neg_hist_neg_cyt,neg_hist])
+hist_marg[1,2] <- sum(est_tran[neg_hist_neg_cyt,pos_hist])
+hist_marg[2,1] <- sum(est_tran[pos_hist_neg_cyt,neg_hist])
+hist_marg[2,2] <- sum(est_tran[pos_hist_neg_cyt,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg Cyt Neg", "Hist Pos Cyt Neg")
+kable_styling(kable(hist_marg))
+
+neg_hist_cyt_pos <- c(3,7,11)
+pos_hist_cyt_pos <- c(4,8,12)
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_tran[neg_hist_cyt_pos,neg_hist])
+hist_marg[1,2] <- sum(est_tran[neg_hist_cyt_pos,pos_hist])
+hist_marg[2,1] <- sum(est_tran[pos_hist_cyt_pos,neg_hist])
+hist_marg[2,2] <- sum(est_tran[pos_hist_cyt_pos,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg Cyt Pos", "Hist Pos Cyt Pos")
+kable_styling(kable(hist_marg))
+
+neg_hist_neg_hpv <- c(1,3)
+pos_hist_neg_hpv <- c(2,4)
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_tran[neg_hist_neg_hpv,neg_hist])
+hist_marg[1,2] <- sum(est_tran[neg_hist_neg_hpv,pos_hist])
+hist_marg[2,1] <- sum(est_tran[pos_hist_neg_hpv,neg_hist])
+hist_marg[2,2] <- sum(est_tran[pos_hist_neg_hpv,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg HPV -", "Hist Pos HPV -")
+kable_styling(kable(hist_marg))
+
+neg_hist_pos_hpv <- c(5,7)
+pos_hist_pos_hpv <- c(6,8)
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_tran[neg_hist_pos_hpv,neg_hist])
+hist_marg[1,2] <- sum(est_tran[neg_hist_pos_hpv,pos_hist])
+hist_marg[2,1] <- sum(est_tran[pos_hist_pos_hpv,neg_hist])
+hist_marg[2,2] <- sum(est_tran[pos_hist_pos_hpv,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg HPV +", "Hist Pos HPV +")
+kable_styling(kable(hist_marg))
+
+neg_hist_pos_pos_hpv <- c(9,11)
+pos_hist_pos_pos_hpv <- c(10,12)
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_tran[neg_hist_pos_pos_hpv,neg_hist])
+hist_marg[1,2] <- sum(est_tran[neg_hist_pos_pos_hpv,pos_hist])
+hist_marg[2,1] <- sum(est_tran[pos_hist_pos_pos_hpv,neg_hist])
+hist_marg[2,2] <- sum(est_tran[pos_hist_pos_pos_hpv,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg HPV ++", "Hist Pos HPV ++")
+kable_styling(kable(hist_marg))
+
 ```
+
 
 ```{r}
-ind <- 3
-plot(class_est_array[ind,1,], likelihood_array)
-plot(class_est_array[ind,2,], likelihood_array)
-plot(class_est_array[ind,3,], likelihood_array)
-plot(class_est_array[ind,4,], likelihood_array)
-# 
-# plot(class_est_array[ind,5,], likelihood_array)
-# plot(class_est_array[ind,6,], likelihood_array)
-# plot(class_est_array[ind,7,], likelihood_array)
-# plot(class_est_array[ind,8,], likelihood_array)
+#Class
+neg_cyt <- c(1,2,5,6,9,10)
+pos_cyt <- c(3,4,7,8,11,12)
+neg_cyt_neg_hist <- c(1,5,9)
+pos_cyt_neg_hist <- c(3,7,11)
+neg_cyt_pos_hist <- c(2,6,10)
+pos_cyt_pos_hist <- c(4,8,12)
+neg_hist <- c(1,3,5,7,9,11)
+pos_hist <- c(2,4,6,8,10,12)
+neg_hist_neg_cyt <- c(1,5,9)
+pos_hist_neg_cyt <- c(2,6,10)
+neg_hist_cyt_pos <- c(3,7,11)
+pos_hist_cyt_pos <- c(4,8,12)
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_class[neg_cyt,neg_cyt])
+cyt_marg[1,2] <- sum(est_class[neg_cyt,pos_cyt])
+cyt_marg[2,1] <- sum(est_class[pos_cyt,neg_cyt])
+cyt_marg[2,2] <- sum(est_class[pos_cyt,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+rownames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+kable_styling(kable(cyt_marg))
 
-# plot(class_est_array[ind,9,], likelihood_array)
-# plot(class_est_array[ind,10,], likelihood_array)
-# plot(class_est_array[ind,11,], likelihood_array)
-# plot(class_est_array[ind,12,], likelihood_array)
+
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_class[neg_cyt_neg_hist,neg_cyt])
+cyt_marg[1,2] <- sum(est_class[neg_cyt_neg_hist,pos_cyt])
+cyt_marg[2,1] <- sum(est_class[pos_cyt_neg_hist,neg_cyt])
+cyt_marg[2,2] <- sum(est_class[pos_cyt_neg_hist,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+rownames(cyt_marg) <- c("CYT Neg Hist Neg", "CYT Pos Hist Neg")
+kable_styling(kable(cyt_marg))
+
+
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_class[neg_cyt_pos_hist,neg_cyt])
+cyt_marg[1,2] <- sum(est_class[neg_cyt_pos_hist,pos_cyt])
+cyt_marg[2,1] <- sum(est_class[pos_cyt_pos_hist,neg_cyt])
+cyt_marg[2,2] <- sum(est_class[pos_cyt_pos_hist,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("CYT Neg", "CYT Pos")
+rownames(cyt_marg) <- c("CYT Neg Hist Pos", "CYT Pos Hist Pos")
+kable_styling(kable(cyt_marg))
+
+
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_class[neg_cyt_neg_hpv,neg_cyt])
+cyt_marg[1,2] <- sum(est_class[neg_cyt_neg_hpv,pos_cyt])
+cyt_marg[2,1] <- sum(est_class[pos_cyt_neg_hpv,neg_cyt])
+cyt_marg[2,2] <- sum(est_class[pos_cyt_neg_hpv,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("Cyt Neg", "Cyt Pos")
+rownames(cyt_marg) <- c("Cyt Neg HPV -", "Cyt Pos HPV -")
+kable_styling(kable(cyt_marg))
+
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_class[neg_cyt_pos_hpv,neg_cyt])
+cyt_marg[1,2] <- sum(est_class[neg_cyt_pos_hpv,pos_cyt])
+cyt_marg[2,1] <- sum(est_class[pos_cyt_pos_hpv,neg_cyt])
+cyt_marg[2,2] <- sum(est_class[pos_cyt_pos_hpv,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("Cyt Neg", "Cyt Pos")
+rownames(cyt_marg) <- c("Cyt Neg HPV +", "Cyt Pos HPV +")
+kable_styling(kable(cyt_marg))
+
+cyt_marg <- matrix(0,2,2)
+cyt_marg[1,1] <- sum(est_class[neg_cyt_pos_pos_hpv,neg_cyt])
+cyt_marg[1,2] <- sum(est_class[neg_cyt_pos_pos_hpv,pos_cyt])
+cyt_marg[2,1] <- sum(est_class[pos_cyt_pos_pos_hpv,neg_cyt])
+cyt_marg[2,2] <- sum(est_class[pos_cyt_pos_pos_hpv,pos_cyt])
+cyt_marg <- cyt_marg / rowSums(cyt_marg)
+colnames(cyt_marg) <- c("Cyt Neg", "Cyt Pos")
+rownames(cyt_marg) <- c("Cyt Neg HPV ++", "Cyt Pos HPV ++")
+kable_styling(kable(cyt_marg))
+
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_class[neg_hist,neg_hist])
+hist_marg[1,2] <- sum(est_class[neg_hist,pos_hist])
+hist_marg[2,1] <- sum(est_class[pos_hist,neg_hist])
+hist_marg[2,2] <- sum(est_class[pos_hist,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+names <- c("Hist Neg", "Hist Pos")
+colnames(hist_marg) <- names
+rownames(hist_marg) <- names
+kable_styling(kable(hist_marg))
+
+
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_class[neg_hist_neg_cyt,neg_hist])
+hist_marg[1,2] <- sum(est_class[neg_hist_neg_cyt,pos_hist])
+hist_marg[2,1] <- sum(est_class[pos_hist_neg_cyt,neg_hist])
+hist_marg[2,2] <- sum(est_class[pos_hist_neg_cyt,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg Cyt Neg", "Hist Pos Cyt Neg")
+kable_styling(kable(hist_marg))
+
+
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_class[neg_hist_cyt_pos,neg_hist])
+hist_marg[1,2] <- sum(est_class[neg_hist_cyt_pos,pos_hist])
+hist_marg[2,1] <- sum(est_class[pos_hist_cyt_pos,neg_hist])
+hist_marg[2,2] <- sum(est_class[pos_hist_cyt_pos,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg Cyt Pos", "Hist Pos Cyt Pos")
+kable_styling(kable(hist_marg))
+
+
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_class[neg_hist_neg_hpv,neg_hist])
+hist_marg[1,2] <- sum(est_class[neg_hist_neg_hpv,pos_hist])
+hist_marg[2,1] <- sum(est_class[pos_hist_neg_hpv,neg_hist])
+hist_marg[2,2] <- sum(est_class[pos_hist_neg_hpv,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg HPV -", "Hist Pos HPV -")
+kable_styling(kable(hist_marg))
+
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_class[neg_hist_pos_hpv,neg_hist])
+hist_marg[1,2] <- sum(est_class[neg_hist_pos_hpv,pos_hist])
+hist_marg[2,1] <- sum(est_class[pos_hist_pos_hpv,neg_hist])
+hist_marg[2,2] <- sum(est_class[pos_hist_pos_hpv,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg HPV +", "Hist Pos HPV +")
+kable_styling(kable(hist_marg))
+
+hist_marg <- matrix(0,2,2)
+hist_marg[1,1] <- sum(est_class[neg_hist_pos_pos_hpv,neg_hist])
+hist_marg[1,2] <- sum(est_class[neg_hist_pos_pos_hpv,pos_hist])
+hist_marg[2,1] <- sum(est_class[pos_hist_pos_pos_hpv,neg_hist])
+hist_marg[2,2] <- sum(est_class[pos_hist_pos_pos_hpv,pos_hist])
+hist_marg <- hist_marg / rowSums(hist_marg)
+colnames(hist_marg) <- c("Hist Neg", "Hist Pos")
+rownames(hist_marg) <- c("Hist Neg HPV ++", "Hist Pos HPV ++")
+kable_styling(kable(hist_marg))
+
 ```
-
-
-```{r}
-library(plotly)
-
-p <- plot_ly(x = pi_est_array, y = class_est_array[1,1,], z = likelihood_array) %>%
-  add_markers() %>%
-  layout(scene = list(xaxis = list(title = 'Stayer'),
-                     yaxis = list(title = '0 State Class'),
-                     zaxis = list(title = 'Likelihood')))
-p
-
-p <- plot_ly(x = tran_est_array[1,1,], y = class_est_array[1,1,], z = likelihood_array) %>%
-  add_markers() %>%
-  layout(scene = list(xaxis = list(title = '00 Tran'),
-                     yaxis = list(title = '0 State Class'),
-                     zaxis = list(title = 'Likelihood')))
-p
-
-p <- plot_ly(x = tran_est_array[3,3,], y = class_est_array[3,3,], z = likelihood_array) %>%
-  add_markers() %>%
-  layout(scene = list(xaxis = list(title = '22 Tran'),
-                     yaxis = list(title = State Class'),
-                     zaxis = list(title = 'Likelihood')))
-p
-```
-

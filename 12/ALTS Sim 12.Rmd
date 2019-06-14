@@ -348,9 +348,16 @@ class_hc <- ClassHC()
 ```
 
 ```{r}
-n <- 5000
+# args <- commandArgs(trailingOnly=FALSE)
+# myargument <-  args[length(args)]
+# myargument <- unlist(strsplit(myargument,'-'))
+# seed <- as.numeric(myargument[2])
+# set.seed(seed)
+
+
+n <- 3488
 t <- 5
-p <- 0
+p <- .06
 data_true_full <- GenerateData(n,t,p)
 data_true <- data_true_full[[1]]
 data_true_array <- array(NaN, dim = c(dim(data_true)[1], dim(data_true)[2], 2))
@@ -443,9 +450,9 @@ class <- class_new
 likelihoods_new <- parApply(cl, sim_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
 
 new_likelihood <- (log(likelihoods_new) %*% freq_vec_sim)[1]
-print(new_likelihood - old_likelihood)
+print(-(new_likelihood - old_likelihood)/old_likelihood)
 
-while ((new_likelihood - old_likelihood) > .001){
+while (-(new_likelihood - old_likelihood)/old_likelihood > .0000000001){
   forw <- parApply(cl, sim_pattern,1,ForwardIterFull, time = 5, init,tran,class)
   backw <- parApply(cl, sim_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
   likelihoods <- likelihoods_new
@@ -467,7 +474,7 @@ while ((new_likelihood - old_likelihood) > .001){
   likelihoods_new <- parApply(cl, sim_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
 
   new_likelihood <- (log(likelihoods_new) %*% freq_vec_sim)[1]
-  print(new_likelihood - old_likelihood)
+  print(-(new_likelihood - old_likelihood)/old_likelihood)
 }
 
 
