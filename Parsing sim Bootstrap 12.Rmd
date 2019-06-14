@@ -1,0 +1,276 @@
+---
+title: "Parsing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, include = FALSE, eval = FALSE}
+# setwd("Data/Sim/No Pers/")
+setwd("Paper/Data/Sim/Full Data Bootstrap//")
+states <- 12
+list_of_names <- list.files()
+reps <- length(list_of_names)
+seed1_num <- 100
+seed2_num <- 100
+
+
+init_array <- array(0,dim = c(seed1_num,seed2_num,states))
+tran_array <- array(0,dim = c(seed1_num,seed2_num,states,states))
+class_array <- array(0,dim = c(seed1_num,seed2_num,states,states))
+pi_array<- array(0,dim = c(seed1_num,seed2_num))
+
+init_true_array <- array(0,dim = c(seed1_num,seed2_num,states))
+tran_true_array <- array(0,dim = c(seed1_num,seed2_num,states,states))
+class_true_array <- array(0,dim = c(seed1_num,seed2_num,states,states))
+pi_true_array<- array(0,dim = c(seed1_num,seed2_num))
+
+init_true_count_array <- array(0,dim = c(seed1_num,seed2_num,states))
+tran_true_count_array <- array(0,dim = c(seed1_num,seed2_num,states,states))
+class_true_count_array <- array(0,dim = c(seed1_num,seed2_num,states,states))
+
+init_list <- vector("list", length = reps)
+tran_list <- vector("list", length = reps)
+class_list <- vector("list", length = reps)
+
+init_true_list <- vector("list", length = reps)
+tran_true_list <- vector("list", length = reps)
+class_true_list <- vector("list", length = reps)
+
+init_true_count_list <- vector("list", length = reps)
+tran_true_count_list <- vector("list", length = reps)
+class_true_count_list <- vector("list", length = reps)
+
+data_true_list <- vector("list", length = reps)
+freq_vec_list <- vector("list", length = reps)
+
+count <- 1
+
+for (name in list_of_names){
+  load(name)
+  
+  obs_parameters <- to_save[[1]]
+  true_parameters <- to_save[[2]]
+  count_parameters <- to_save[[3]]
+  misc <- to_save[[4]]
+  
+  seed1 <- misc[[4]]
+  seed2 <- misc[[5]]
+  
+  init_list[[count]] <- obs_parameters[[1]]
+  tran_list[[count]] <- obs_parameters[[2]]
+  class_list[[count]] <- obs_parameters[[3]]
+  
+  init_true_list[[count]] <- true_parameters[[1]]
+  tran_true_list[[count]] <- true_parameters[[2]]
+  class_true_list[[count]] <- true_parameters[[3]]
+  
+  init_true_count_list[[count]] <- count_parameters[[1]]
+  tran_true_count_list[[count]] <- count_parameters[[2]]
+  class_true_count_list[[count]] <- count_parameters[[3]]
+  
+  
+  pi_array[seed1,seed2] <- obs_parameters[[4]]
+  pi_true_array[seed1,seed2] <- true_parameters[[4]]
+  
+  for (i in 1:states){
+    init_array[seed1,seed2,i] <- init_list[[count]][i]
+    init_true_array[seed1,seed2,i] <- init_true_list[[count]][i]
+    init_true_count_array[seed1,seed2,i] <- init_true_count_list[[count]][i]
+    for (j in 1:states){
+      tran_array[seed1,seed2,i,j] <- tran_list[[count]][i,j]
+      tran_true_array[seed1,seed2,i,j] <- tran_true_list[[count]][i,j]
+      
+      class_array[seed1,seed2,i,j] <- class_list[[count]][i,j]
+      class_true_array[seed1,seed2,i,j] <- class_true_list[[count]][i,j]
+      
+      tran_true_count_array[seed1,seed2,i,j] <- tran_true_count_list[[count]][i,j]
+      class_true_count_array[seed1,seed2,i,j] <- class_true_count_list[[count]][i,j]
+    }
+  }
+  
+  
+  count <- count + 1
+}
+
+```
+
+```{r}
+
+init_boot_var <- array(NA, dim = c(seed1_num,states))
+tran_boot_var <- array(NA, dim = c(seed1_num,states,states))
+class_boot_var <- array(NA, dim = c(seed1_num,states,states))
+
+for (seed1 in 1:seed1_num){
+  for (i in 1:states){
+    init_boot_var[seed1,i] <- var(init_array[seed1,,i])
+    for (j in 1:states){
+      tran_boot_var[seed1,i,j] <- var(tran_array[seed1,,i,j])
+      class_boot_var[seed1,i,j] <- var(class_array[seed1,,i,j])
+    }
+  }
+  
+}
+
+init_sd <- sqrt(apply(init_boot_var,2,FUN = sum)/seed1_num)
+tran_sd <- sqrt(apply(tran_boot_var,c(2,3),FUN = sum)/seed1_num)
+class_sd <- sqrt(apply(class_boot_var,c(2,3),FUN = sum)/seed1_num)
+
+```
+
+```{r, echo = FALSE, fig.width=15, fig.height=15}
+ClassificationHeatmap <- function(X_tran, state_labels = c(0:11), adj_labels){
+  library(reshape)
+  library(ggplot2)
+  rownames(X_tran) <- c(state_labels)
+  colnames(X_tran) <- c(state_labels)
+  X_tran.m <- melt(X_tran)
+  X_tran.m$X1 <- factor(X_tran.m$X1, levels = rev(adj_labels))
+  X_tran.m$X2 <- factor(X_tran.m$X2, levels = (adj_labels))
+  ggplot(X_tran.m,aes(X2, X1)) + 
+    geom_tile(aes(fill = value),color = "white") + 
+    scale_fill_gradient2(low = "blue",high = "red") +
+    labs(x = "New State", y = "Initial State", caption = "Observed - True") + 
+    theme(axis.text.y = element_text(size = 10), axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5)) + 
+    theme(axis.text.x = element_text(angle = 0)) + 
+    theme(axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0))) + 
+    theme(axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0))) +
+    theme(plot.caption = element_text(hjust = .5))
+}
+```
+
+```{r}
+GenerateInitTable <- function(init, init_true, init_count, title){
+  library(knitr)
+  library(kableExtra)
+  combined_mat <- rbind(init, init_true,init_count)
+  rownames(combined_mat) <- c("Median", "Truth", "Count")
+  colnames(combined_mat) <- c(0:(length(init) -1))
+  
+  kable(combined_mat, caption = title) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T) %>%
+    group_rows("State 0",1,3) 
+}
+```
+
+```{r}
+GenerateTable <- function(mean_mat,truth_mat,var_mat,count_mat,title){
+  library(knitr)
+  library(kableExtra)
+  row_names <- c("Median", "Truth", "Std Dev", "Count")
+  
+  length_of_ind <- dim(mean_mat)[1]
+  combined_mat <- matrix(0,length_of_ind*4, length_of_ind)
+  
+  for (i in 1:(length_of_ind * 4)){
+    which_one <- i %% 4
+    true_ind <- ceiling(i/4)
+    if (which_one == 1){
+      combined_mat[i,] <- mean_mat[true_ind,]
+    } else if (which_one == 2){
+      combined_mat[i,] <- truth_mat[true_ind,]
+    } else if (which_one == 0){
+      combined_mat[i,] <- count_mat[true_ind,]
+    } else if (which_one == 3){
+      combined_mat[i,] <- var_mat[true_ind,]
+    }
+  }
+  
+  rownames(combined_mat) <- rep(row_names,length_of_ind)
+
+  colnames(combined_mat) <- c(0:(length_of_ind -1))
+  
+  kable(combined_mat, caption = title) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T) %>%
+    group_rows("State 0",1,4) %>%
+    group_rows("State 1",5,8) %>%
+    group_rows("State 2",9,12) %>%
+    group_rows("State 3",13,16) %>%
+    group_rows("State 4",17,20) %>%
+    group_rows("State 5",21,24) %>%
+    group_rows("State 6",25,28) %>%
+    group_rows("State 7",29,32) %>%
+    group_rows("State 8",33,36) %>%
+    group_rows("State 9",37,40) %>%
+    group_rows("State 10",41,44) %>%
+    group_rows("State 11",45,48) 
+    
+  
+    
+}
+```
+
+```{r}
+
+state_labels <- c(0:11)
+pi_med
+pi_true_med
+sum((init_avg - init_true_avg)^2)/12
+sum((tran_avg - tran_true_avg)^2)/144
+sum((class_avg - class_true_avg)^2)/144
+
+
+ClassificationHeatmap(tran_med - tran_true_med, state_labels, state_labels) + ggtitle("Transition Residuals (median)")
+ClassificationHeatmap(tran_avg - tran_true_avg, state_labels, state_labels) + ggtitle("Transition Residuals (mean)")
+ClassificationHeatmap(class_med - class_true_med, state_labels, state_labels) + ggtitle("Classification Residuals (median)")
+ClassificationHeatmap(class_avg - class_true_avg, state_labels, state_labels) + ggtitle("Classification Residuals (mean)")
+GenerateInitTable(init_avg, init_true_avg, init_true_count_med, "Initial (Median")
+GenerateTable(tran_avg, tran_true_avg, sqrt(tran_var), tran_true_count_med,"Transition (Median)")
+GenerateTable(class_avg, class_true_avg, sqrt(class_var), class_true_count_med,"Classification (Median)")
+```
+
+```{r}
+
+ClassificationHeatmap(tran_med_adj - tran_true_med, state_labels, state_labels) + ggtitle("Transition Residuals (median)")
+ClassificationHeatmap(class_med_adj - class_true_med, state_labels, state_labels) + ggtitle("Classification Residuals (median)")
+```
+
+```{r}
+for (i in 1:dim(tran_med)[1]){
+  for (j in 1:dim(tran_med)[2]){
+    if (abs(tran_med[i,j] - tran_true_med[i,j]) > .02){
+      iqr1 <- IQR(tran_array[i,j,])
+      iqr2 <- IQR(tran_true_array[i,j,])
+      
+      # if ((tran_med[i,j] - iqr1) > (tran_true_med[i,j] + iqr2)){
+        boxplot(tran_array[i,j,], tran_true_array[i,j,])
+        print(i)
+        print(j)
+      # }
+      
+      # if ((tran_med[i,j] + iqr1) < (tran_true_med[i,j] - iqr2)){
+      #   boxplot(tran_array[i,j,], tran_true_array[i,j,])
+      #   print(i)
+      #   print(j)
+      # }
+      
+    }
+  }
+}
+```
+
+```{r}
+for (i in 1:dim(class_med)[1]){
+  for (j in 1:dim(class_med)[2]){
+    if (abs(class_med[i,j] - class_true_med[i,j]) > .05){
+      iqr1 <- IQR(class_array[i,j,])
+      iqr2 <- IQR(class_true_array[i,j,])
+      
+      # if ((class_med[i,j] - iqr1) > (class_true_med[i,j] + iqr2)){
+        boxplot(class_array[i,j,], class_true_array[i,j,])
+        print(i)
+        print(j)
+      # }
+      
+      # if ((class_med[i,j] + iqr1) < (class_true_med[i,j] - iqr2)){
+      #   boxplot(class_array[i,j,], class_true_array[i,j,])
+      #   print(i)
+      #   print(j)
+      # }
+      
+    }
+  }
+}
+```
