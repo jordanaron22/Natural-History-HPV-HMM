@@ -1,0 +1,65 @@
+---
+title: "Risk"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+init <- to_save[[2]][[1]]
+tran <- to_save[[2]][[2]]
+class <- to_save[[2]][[3]]
+pi <- to_save[[2]][[4]]
+
+
+```
+
+```{r}
+
+RiskCalcInd <- function(init,tran,class,pi,HPV, cyt){
+  p_latent <- (init + init %*% tran + init %*% tran %*% tran + init %*% tran %*% tran %*% tran + init %*% tran %*% tran %*% tran %*% tran)/5
+  p_latent <- (1 - pi) * p_latent
+  p_latent[1,1] <- p_latent[1,1] + pi
+  hist_pos <- c(2,4,6,8,10,12)
+  
+  possible_states <- c(HPV*4 + cyt*2 + 1, HPV*4 + cyt*2 + 2)
+  running_num <- 0
+  for (hist_state in hist_pos){
+    running_class <- 0
+    for (pos_state in possible_states){
+       running_class <- running_class + class[hist_state,pos_state]
+    }
+    running_num <- running_num + p_latent[hist_state] * running_class
+  }
+  
+  running_denom <- 0
+  for (i in 1:12){
+    running_class <- 0
+    for (pos_state in possible_states){
+       running_class <- running_class + class[i,pos_state]
+    }
+    running_denom <- running_denom + p_latent[i] * running_class
+  }
+  return(running_num/running_denom)
+}
+
+RiskCalc <- function(init, tran, class, pi){
+  risk <- numeric(6)
+  risk[1] <- RiskCalcInd(init,tran,class,pi,0,0)
+  risk[2] <- RiskCalcInd(init,tran,class,pi,0,1)
+  risk[3] <- RiskCalcInd(init,tran,class,pi,1,0)
+  risk[4] <- RiskCalcInd(init,tran,class,pi,1,1)
+  risk[5] <- RiskCalcInd(init,tran,class,pi,2,0)
+  risk[6] <- RiskCalcInd(init,tran,class,pi,2,1)
+  return(risk)
+}
+
+RiskCalc(init, tran, class, pi)
+
+```
+
+```{r}
+
+```
