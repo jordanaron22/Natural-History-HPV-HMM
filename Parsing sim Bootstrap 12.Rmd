@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, echo = FALSE, include = FALSE, eval = FALSE}
 # setwd("Data/Sim/No Pers/")
-setwd("Paper/Data/Sim/Full Data Bootstrap//")
+setwd("Paper/Data/Sim/Current Method Bootstrap///")
 states <- 12
 list_of_names <- list.files()
 reps <- length(list_of_names)
@@ -99,13 +99,16 @@ for (name in list_of_names){
 
 ```{r}
 
+pi_boot_var <- array(NA, dim = c(seed1_num))
 init_boot_var <- array(NA, dim = c(seed1_num,states))
 tran_boot_var <- array(NA, dim = c(seed1_num,states,states))
 class_boot_var <- array(NA, dim = c(seed1_num,states,states))
 
+
 for (seed1 in 1:seed1_num){
+  pi_boot_var[seed1] <- var(pi_array[seed1,])
   for (i in 1:states){
-    init_boot_var[seed1,i] <- var(init_array[seed1,,i])
+    init_boot_var[seed1,i] <- sqrt(var(init_array[seed1,,i]))
     for (j in 1:states){
       tran_boot_var[seed1,i,j] <- var(tran_array[seed1,,i,j])
       class_boot_var[seed1,i,j] <- var(class_array[seed1,,i,j])
@@ -114,9 +117,10 @@ for (seed1 in 1:seed1_num){
   
 }
 
-init_sd <- sqrt(apply(init_boot_var,2,FUN = sum)/seed1_num)
+init_sd <- apply(init_boot_var,2,FUN = sum)/seed1_num
 tran_sd <- sqrt(apply(tran_boot_var,c(2,3),FUN = sum)/seed1_num)
 class_sd <- sqrt(apply(class_boot_var,c(2,3),FUN = sum)/seed1_num)
+pi_sd <- sum(sqrt(pi_boot_var))/seed1_num
 
 ```
 
