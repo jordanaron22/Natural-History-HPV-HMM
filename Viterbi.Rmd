@@ -1,0 +1,95 @@
+---
+title: "Viterbi"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+Classification <- function(x_val,y_val,class){
+  if (is.na(x_val)){
+    return(1)
+  }
+  return(class[[y_val+1,x_val+1]])
+}
+```
+
+```{r}
+ClassificationPartial <- function(x_vals,y_val, class){
+  if (is.na(x_vals[1])){
+    return(1)
+  }
+  running_class <- 0
+  for (x_val in x_vals){
+    if (!is.na(x_val)){
+      running_class <- running_class + Classification(x_val,y_val,class)
+    }
+  }
+  return(running_class)
+}
+```
+
+```{r}
+ind_data <- ALTS[35,,]
+init <- to_save[[2]][[1]]
+tran <- to_save[[2]][[2]]
+class <- to_save[[2]][[3]]
+pi <- to_save[[2]][[4]]
+
+ViterbiInd <- function(){
+  
+}
+state_num <- 12
+time_num <- 5
+viterbi_mat <- matrix(0,state_num,time_num)
+decoded <- numeric(time_num)
+use_pi <- T
+for (time in 1:time_num){
+  for (state in 1:state_num){
+    if (time == 1){
+      
+      if (state == 1){
+        viterbi_mat[state,time] <- log(((1 - pi) * init[state] * ClassificationPartial(ind_data[time,],state - 1,class)) + (pi * ClassificationPartial(ind_data[time,],state - 1,class)))
+      } else {
+        viterbi_mat[state,time] <- log(1 - pi) + log(init[state]) + log(ClassificationPartial(ind_data[time,],state - 1,class))
+      }
+      
+    } else {
+      
+      
+      
+      if (state == 1){
+        viterbi_mat[state,time] <- viterbi_mat[decoded_state,time-1] + log((tran[decoded_state,state] * ClassificationPartial(ind_data[time,],state - 1,class)) +
+                                         (ClassificationPartial(ind_data[time,],state - 1,class)))
+      } else {
+        viterbi_mat[state,time] <- viterbi_mat[decoded_state,time-1] + log(tran[decoded_state,state]) + log(ClassificationPartial(ind_data[time,],state - 1,class))
+      }
+      
+    }
+  }
+  decoded_state <- which.max(viterbi_mat[,time])
+  decoded[time] <- decoded_state - 1
+  if (decoded_state != 1){
+    use_pi <- F
+    break
+  }
+  
+}
+
+if (!use_pi){
+  for (time in 1:time_num){
+    for (state in 1:state_num){
+      if (time == 1){
+        viterbi_mat[state,time] <- log(1 - pi) + log(init[state]) + log(ClassificationPartial(ind_data[time,],state - 1,class))
+      } else {
+        viterbi_mat[state,time] <- viterbi_mat[decoded_state,time-1] + log(tran[decoded_state,state]) + log(ClassificationPartial(ind_data[time,],state - 1,class))
+      }
+    }
+    decoded_state <- which.max(viterbi_mat[,time])
+    decoded[time] <- decoded_state - 1
+
+  }
+}
+```

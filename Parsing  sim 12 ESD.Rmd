@@ -1,0 +1,571 @@
+---
+title: "Parsing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, include = FALSE, eval = FALSE}
+# setwd("Data/Sim/No Pers/")
+setwd("Paper/Data/Sim/NaiveMethod10k//")
+states <- 12
+list_of_names <- list.files()
+reps <- length(list_of_names)
+
+init_array <- array(0,dim = c(1,states,reps))
+tran_array <- array(0,dim = c(states,states,reps))
+class_array <- array(0,dim = c(states,states,reps))
+pi_array<- array(0,dim = c(1,1,reps))
+
+init_true_array <- array(0,dim = c(1,states,reps))
+tran_true_array <- array(0,dim = c(states,states,reps))
+class_true_array <- array(0,dim = c(states,states,reps))
+pi_true_array<- array(0,dim = c(1,1,reps))
+
+init_true_count_array <- array(0,dim = c(1,states,reps))
+tran_true_count_array <- array(0,dim = c(states,states,reps))
+class_true_count_array <- array(0,dim = c(states,states,reps))
+
+init_list <- vector("list", length = reps)
+tran_list <- vector("list", length = reps)
+class_list <- vector("list", length = reps)
+
+init_true_list <- vector("list", length = reps)
+tran_true_list <- vector("list", length = reps)
+class_true_list <- vector("list", length = reps)
+
+init_true_count_list <- vector("list", length = reps)
+tran_true_count_list <- vector("list", length = reps)
+class_true_count_list <- vector("list", length = reps)
+
+seed_list <- numeric(reps)
+likelihood_list <- numeric(reps)
+
+data_true_list <- vector("list", length = reps)
+freq_vec_list <- vector("list", length = reps)
+
+count <- 1
+
+for (name in list_of_names){
+  load(name)
+  
+  obs_parameters <- to_save[[1]]
+  true_parameters <- to_save[[2]]
+  count_parameters <- to_save[[3]]
+  data_paramerers <- to_save[[4]]
+  
+  init_list[[count]] <- obs_parameters[[1]]
+  tran_list[[count]] <- obs_parameters[[2]]
+  class_list[[count]] <- obs_parameters[[3]]
+  pi_array[1,1,count] <- obs_parameters[[4]]
+  
+  
+  init_true_list[[count]] <- true_parameters[[1]]
+  tran_true_list[[count]] <- true_parameters[[2]]
+  class_true_list[[count]] <- true_parameters[[3]]
+  pi_true_array[1,1,count] <- true_parameters[[4]]
+  
+  init_true_count_list[[count]] <- count_parameters[[1]]
+  tran_true_count_list[[count]] <- count_parameters[[2]]
+  class_true_count_list[[count]] <- count_parameters[[3]]
+  
+  likelihood_list[count] <- data_paramerers[[3]]
+  seed_list[count]  <- data_paramerers[[4]]
+  
+  
+  
+  for (i in 1:states){
+    init_array[1,i,count] <- init_list[[count]][i]
+    init_true_array[1,i,count] <- init_true_list[[count]][i]
+    init_true_count_array[1,i,count] <- init_true_count_list[[count]][i]
+    for (j in 1:states){
+      tran_array[i,j,count] <- tran_list[[count]][i,j]
+      tran_true_array[i,j,count] <- tran_true_list[[count]][i,j]
+      
+      class_array[i,j,count] <- class_list[[count]][i,j]
+      class_true_array[i,j,count] <- class_true_list[[count]][i,j]
+      
+      tran_true_count_array[i,j,count] <- tran_true_count_list[[count]][i,j]
+      class_true_count_array[i,j,count] <- class_true_count_list[[count]][i,j]
+    }
+  }
+  
+  
+  count <- count + 1
+}
+
+
+#############################################
+
+state_visits <- numeric(states)
+state_visits_true <- numeric(states)
+
+init_med <- numeric(states)
+tran_med <- matrix(0,states,states)
+class_med <- matrix(0,states,states)
+pi_med <- median(pi_array[1,1,])
+
+init_true_med <- numeric(states)
+tran_true_med <- matrix(0,states,states)
+class_true_med <- matrix(0,states,states)
+pi_true_med <- median(pi_true_array[1,1,])
+
+init_avg <- numeric(states)
+tran_avg <- matrix(0,states,states)
+class_avg <- matrix(0,states,states)
+pi_avg <- mean(pi_array[1,1,])
+
+init_true_avg <- numeric(states)
+tran_true_avg <- matrix(0,states,states)
+class_true_avg <- matrix(0,states,states)
+pi_true_avg <- mean(pi_true_array[1,1,])
+
+init_true_count_med <- numeric(states)
+init_true_count_avg <- numeric(states)
+tran_true_count_med <- matrix(0,states,states)
+tran_true_count_avg <- matrix(0,states,states)
+class_true_count_med <- matrix(0,states,states)
+class_true_count_avg <- matrix(0,states,states)
+
+init_var <- numeric(states)
+tran_var <- matrix(0,states,states)
+class_var <- matrix(0,states,states)
+pi_var <- var(pi_array[1,1,])
+pi_sd <- sqrt(pi_var)
+
+
+for (i in 1:states){
+  init_med[i] <- median(init_array[1,i,])
+  init_true_med[i] <- median(init_true_array[1,i,])
+  
+  init_avg[i] <- mean(init_array[1,i,])
+  init_true_avg[i] <- mean(init_true_array[1,i,])
+  
+  init_true_count_med[i] <- median(init_true_count_array[1,i,])
+  init_true_count_avg[i] <- mean(init_true_count_array[1,i,])
+  
+  init_var[i] <- var(init_array[1,i,])
+  
+  
+  for (j in 1:states){
+    tran_med[i,j] <- median(tran_array[i,j,])
+    tran_true_med[i,j] <- median(tran_true_array[i,j,])
+    tran_avg[i,j] <- mean(tran_array[i,j,])
+    tran_true_avg[i,j] <- mean(tran_true_array[i,j,])
+    
+    class_med[i,j] <- median(class_array[i,j,])
+    class_true_med[i,j] <- median(class_true_array[i,j,])
+    class_avg[i,j] <- mean(class_array[i,j,])
+    class_true_avg[i,j] <- mean(class_true_array[i,j,])
+    
+    tran_true_count_med[i,j] <- median(tran_true_count_array[i,j,])
+    tran_true_count_avg[i,j] <- mean(tran_true_count_array[i,j,])
+    class_true_count_med[i,j] <- median(class_true_count_array[i,j,])
+    class_true_count_avg[i,j] <- mean(class_true_count_array[i,j,])
+    
+  
+    tran_var[i,j] <- var(tran_array[i,j,])
+    class_var[i,j] <- var(class_array[i,j,])
+    
+  }
+}
+length <- 5
+k <- c(0:2)
+
+init_sd <- sqrt(init_var)
+tran_sd <- sqrt(tran_var)
+class_sd <- sqrt(class_var)
+
+transition_true <- matrix(0L, nrow = length(k), ncol = length(k))
+transition_obs <- matrix(0L, nrow = length(k), ncol = length(k))
+
+initial_true <- numeric(states)
+initial_obs <- numeric(states)
+
+transition_obs <- transition_obs/reps
+transition_true <- transition_true/reps
+
+initial_true <- initial_true/reps
+initial_obs <- initial_obs/reps
+
+
+tran_med_adj <- tran_med
+
+class_med_adj <- class_med
+
+for (i in 1:dim(class_true_count_med)[1]){
+  for (j in 1:dim(class_true_count_med)[2]){
+    
+    if (class_true_count_med[i,j] < 61){
+      class_med_adj[i,j] <- class_true_med[i,j]
+    }
+    
+    if (tran_true_count_med[i,j] < 61){
+      tran_med_adj[i,j] <- tran_true_med[i,j]
+    }
+  }
+}
+```
+
+```{r, echo = FALSE, fig.width=15, fig.height=15}
+ClassificationHeatmap <- function(X_tran, state_labels = c(0:11), adj_labels){
+  library(reshape)
+  library(ggplot2)
+  rownames(X_tran) <- c(state_labels)
+  colnames(X_tran) <- c(state_labels)
+  X_tran.m <- melt(X_tran)
+  X_tran.m$X1 <- factor(X_tran.m$X1, levels = rev(adj_labels))
+  X_tran.m$X2 <- factor(X_tran.m$X2, levels = (adj_labels))
+  ggplot(X_tran.m,aes(X2, X1)) + 
+    geom_tile(aes(fill = value),color = "white") + 
+    scale_fill_gradient2(low = "blue",high = "red") +
+    labs(x = "New State", y = "Initial State", caption = "Observed - True") + 
+    theme(axis.text.y = element_text(size = 10), axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5)) + 
+    theme(axis.text.x = element_text(angle = 0)) + 
+    theme(axis.title.y = element_text(margin = margin(t = 0, r = 20, b = 0, l = 0))) + 
+    theme(axis.title.x = element_text(margin = margin(t = 20, r = 0, b = 0, l = 0))) +
+    theme(plot.caption = element_text(hjust = .5))
+}
+```
+
+```{r}
+GenerateInitTable <- function(init, init_true, init_sd, init_count, title){
+  library(knitr)
+  library(kableExtra)
+  combined_mat <- rbind(init, init_true,init_sd, init_count)
+  rownames(combined_mat) <- c("Median", "Truth", "SD", "Count")
+  colnames(combined_mat) <- c(0:(length(init) -1))
+  
+  kable(combined_mat, caption = title) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T) %>%
+    group_rows("State 0",1,4) 
+}
+```
+
+```{r}
+GenerateTable <- function(mean_mat,truth_mat,var_mat,count_mat,title){
+  library(knitr)
+  library(kableExtra)
+  row_names <- c("Median", "Truth", "Std Dev", "Count")
+  
+  length_of_ind <- dim(mean_mat)[1]
+  combined_mat <- matrix(0,length_of_ind*4, length_of_ind)
+  
+  for (i in 1:(length_of_ind * 4)){
+    which_one <- i %% 4
+    true_ind <- ceiling(i/4)
+    if (which_one == 1){
+      combined_mat[i,] <- mean_mat[true_ind,]
+    } else if (which_one == 2){
+      combined_mat[i,] <- truth_mat[true_ind,]
+    } else if (which_one == 0){
+      combined_mat[i,] <- count_mat[true_ind,]
+    } else if (which_one == 3){
+      combined_mat[i,] <- var_mat[true_ind,]
+    }
+  }
+  
+  rownames(combined_mat) <- rep(row_names,length_of_ind)
+
+  colnames(combined_mat) <- c(0:(length_of_ind -1))
+  
+  kable(combined_mat, caption = title) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = T) %>%
+    group_rows("State 0",1,4) %>%
+    group_rows("State 1",5,8) %>%
+    group_rows("State 2",9,12) %>%
+    group_rows("State 3",13,16) %>%
+    group_rows("State 4",17,20) %>%
+    group_rows("State 5",21,24) %>%
+    group_rows("State 6",25,28) %>%
+    group_rows("State 7",29,32) %>%
+    group_rows("State 8",33,36) %>%
+    group_rows("State 9",37,40) %>%
+    group_rows("State 10",41,44) %>%
+    group_rows("State 11",45,48) 
+    
+  
+    
+}
+```
+
+```{r}
+
+state_labels <- c(0:11)
+pi_med
+pi_true_med
+sum((init_avg - init_true_avg)^2)/12
+sum((tran_avg - tran_true_avg)^2)/144
+sum((class_avg - class_true_avg)^2)/144
+# 
+# 
+# ClassificationHeatmap(tran_med - tran_true_med, state_labels, state_labels) + ggtitle("Transition Residuals (median)")
+# ClassificationHeatmap(tran_avg - tran_true_avg, state_labels, state_labels) + ggtitle("Transition Residuals (mean)")
+# ClassificationHeatmap(class_med - class_true_med, state_labels, state_labels) + ggtitle("Classification Residuals (median)")
+# ClassificationHeatmap(class_avg - class_true_avg, state_labels, state_labels) + ggtitle("Classification Residuals (mean)")
+GenerateInitTable(init_avg, init_true_avg, init_sd, init_true_count_med, "Initial (Median")
+GenerateTable(tran_avg, tran_true_avg, tran_sd, tran_true_count_med,"Transition (Median)")
+GenerateTable(class_avg, class_true_avg, class_sd, class_true_count_med,"Classification (Median)")
+```
+
+```{r}
+
+ClassificationHeatmap(tran_med_adj - tran_true_med, state_labels, state_labels) + ggtitle("Transition Residuals (median)")
+ClassificationHeatmap(class_med_adj - class_true_med, state_labels, state_labels) + ggtitle("Classification Residuals (median)")
+```
+
+```{r}
+new_order <- c(1,3,5,7,9,11,2,4,6,8,10,12)
+
+pi_med - pi_true_med
+sqrt(var(pi_array[1,1,]))
+pi_sd
+
+round((init_avg - init_true_avg)[new_order],3)
+
+round(c(sqrt(var(init_array[1,1,])),
+  sqrt(var(init_array[1,2,])),
+  sqrt(var(init_array[1,3,])),
+  sqrt(var(init_array[1,4,])),
+  sqrt(var(init_array[1,5,])),
+  sqrt(var(init_array[1,6,])),
+  sqrt(var(init_array[1,7,])),
+  sqrt(var(init_array[1,8,])),
+  sqrt(var(init_array[1,9,])),
+  sqrt(var(init_array[1,10,])),
+  sqrt(var(init_array[1,11,])),
+  sqrt(var(init_array[1,12,])))[new_order],3)
+
+round(init_sd[new_order],3)
+
+round(sum((init_avg - init_true_avg)[c(1,2,3,4)]),3)
+round(sum((init_avg - init_true_avg)[c(5,6,7,8)]),3)
+round(sum((init_avg - init_true_avg)[c(9,10,11,12)]),3)
+
+round(sum((init_avg - init_true_avg)[c(1,2,5,6,9,10)]),3)
+round(sum((init_avg - init_true_avg)[c(3,4,7,8,11,12)]),3)
+
+round(sum((init_avg - init_true_avg)[c(1,3,5,7,9,11)]),3)
+round(sum((init_avg - init_true_avg)[c(2,4,6,8,10,12)]),3)
+```
+
+```{r}
+Captured <- function(bias, standard_error){
+  if (bias == 0 & standard_error == 0){
+    return(T)
+  }
+  abs_bias <- abs(bias)
+  if (standard_error * 1.96 > abs_bias){return(T)}
+  else {return(F)}
+}
+```
+
+```{r}
+library(xtable)
+new_order <- c(1,3,5,7,9,11,2,4,6,8,10,12)
+big_rows <- 19
+table <- ""
+sig_fig <- 3
+# true_mat <- init_true_avg
+# count_mat <- init_true_count_avg
+# cm_bias <- init_avg - init_true_avg
+# cm_esd <- init_sd
+# fd_bias <- init_avg - init_true_avg
+# fd_esd <- init_sd
+# nm_bias <- init_avg - init_true_avg
+# nm_esd <- init_sd
+
+# pi_cm_bias <- pi_avg - pi_true_avg
+# pi_cm_esd <- pi_sd
+# pi_fd_bias <- pi_avg - pi_true_avg
+# pi_fd_esd <- pi_sd
+# pi_nm_bias <- pi_avg - pi_true_avg
+# pi_nm_esd <- pi_sd
+
+table <- "\\begin{table}[H]
+\\centering
+\\resizebox{\\textwidth}{!}{%
+\\begin{tabular}{@{}cccccccccccccc@{}}
+ &  &  &  &  &  & \\multicolumn{2}{c}{Current Method} & \\multicolumn{2}{c}{Full Data} & \\multicolumn{2}{c}{Naive Method} \\\\ \\midrule
+ & HPV & Cytology & \\multicolumn{1}{c|}{Colpo} & Truth & \\multicolumn{1}{c|}{N} & Bias & \\multicolumn{1}{c|}{ESD} & Bias & \\multicolumn{1}{c|}{ESD} & Bias & ESD \\\\ \\midrule \n"
+
+
+table <- paste0(table, "\\multicolumn{1}{c|}{Stayer} &  &  & \\multicolumn{1}{c|}{} & ", round(pi_avg,sig_fig), " & \\multicolumn{1}{c|}{} &", round(pi_cm_bias,sig_fig)," & \\multicolumn{1}{c|}{ ", round(pi_cm_esd,sig_fig), "} ")
+table <- paste0(table, "& ",round(pi_fd_bias,sig_fig), " & \\multicolumn{1}{c|}{ ", round(pi_fd_esd,sig_fig), " } ")
+table <- paste0(table, "& ",round(pi_nm_bias,sig_fig), " & \\multicolumn{1}{c|}{ ", round(pi_nm_esd,sig_fig), " } \n \\\\")
+
+
+table <- paste0(table , "\\multicolumn{1}{c|}{Mover} &  &  & \\multicolumn{1}{c|}{} & ", round(1 - pi_avg,sig_fig), " & \\multicolumn{1}{c|}{} &", round(pi_cm_bias,sig_fig)," & \\multicolumn{1}{c|}{ ", round(pi_cm_esd,sig_fig), "} ")
+table <- paste0(table, "& ",round(pi_fd_bias,sig_fig), " & \\multicolumn{1}{c|}{ ", round(pi_fd_esd,sig_fig), " } ")
+table <- paste0(table, "& ",round(pi_nm_bias,sig_fig), " & \\multicolumn{1}{c|}{ ", round(pi_nm_esd,sig_fig), " } \n \\\\")
+
+for (i in 1:big_rows){
+  adj_state <- "0/0/0"
+  if(i == 2){adj_state <-"0/1/0"}
+  else if(i == 3){adj_state <- "1/0/0"}
+  else if(i == 4){adj_state <- "1/1/0"}
+  else if(i == 5){adj_state <- "2/0/0"}
+  else if(i == 6){adj_state <- "2/1/0"}
+  else if(i == 7){adj_state <- "0/0/1"}
+  else if(i == 8){adj_state <- "0/1/1"}
+  else if(i== 9){adj_state <- "1/0/1"}
+  else if(i == 10){adj_state <- "1/1/1"}
+  else if(i == 11){adj_state <- "2/0/1"}
+  else if(i == 12){adj_state <- "2/1/1"}
+  else if(i == 13){
+    adj_state <- "0/-/-" 
+    to_sum <- c(1,2,3,4)
+    }
+  else if(i == 14){
+    adj_state <- "1/-/-"
+    to_sum <- c(5,6,7,8)
+    }
+  else if(i == 15){
+    adj_state <- "2/-/-"
+    to_sum <- c(9,10,11,12)
+    }
+  else if(i == 16){
+    adj_state <- "-/0/-"
+    to_sum <- c(1,2,5,6,9,10)
+    }
+  else if(i == 17){
+    adj_state <- "-/1/-"
+    to_sum <- c(3,4,7,8,11,12)
+    }
+  else if(i == 18){
+    adj_state <- "-/-/0"
+    to_sum <- c(1,3,5,7,9,11)
+    }
+  else if(i == 19){
+    adj_state <- "-/-/1"
+    to_sum <- c(2,4,6,8,10,12)
+    }
+  
+  
+  table <- paste0(table, "\\multicolumn{1}{c|}{} & ", substr(adj_state,1,1), " & ", substr(adj_state,3,3), " & \\multicolumn{1}{c|}{", substr(adj_state,5,5), "} ")
+  
+  if (i < 13){
+    table <- paste0(table, "& ", round(true_mat[new_order][i],sig_fig), " & \\multicolumn{1}{c|}{", round(count_mat[new_order][i]), "} ")
+    
+    if (Captured(cm_bias[new_order][i], cm_esd[new_order][i])){
+      table <- paste0(table, "& ", round(cm_bias[new_order][i],sig_fig), " & \\multicolumn{1}{c|}{", round(cm_esd[new_order][i],sig_fig), "} ")
+    } else {
+      table <- paste0(table, "& ", round(cm_bias[new_order][i],sig_fig), "^* & \\multicolumn{1}{c|}{", round(cm_esd[new_order][i],sig_fig), "} ")
+    }
+    
+    if (Captured(fd_bias[new_order][i], fd_esd[new_order][i])){
+      table <- paste0(table, "& ", round(fd_bias[new_order][i],sig_fig), " & \\multicolumn{1}{c|}{", round(fd_esd[new_order][i],sig_fig), "} ")
+    } else {
+      table <- paste0(table, "& ", round(fd_bias[new_order][i],sig_fig), "^* & \\multicolumn{1}{c|}{", round(fd_esd[new_order][i],sig_fig), "} ")
+    }
+    
+    if (Captured(nm_bias[new_order][i], nm_esd[new_order][i])){
+      table <- paste0(table, "& ", round(nm_bias[new_order][i],sig_fig), " & \\multicolumn{1}{c|}{", round(nm_esd[new_order][i],sig_fig), "} ")
+    } else {
+      table <- paste0(table, "& ", round(nm_bias[new_order][i],sig_fig), "^* & \\multicolumn{1}{c|}{", round(nm_esd[new_order][i],sig_fig), "} ")
+    }
+    
+    table <- paste(table,  "\\\\ \n")
+  } else {
+    table <- paste0(table, "& ", round(sum(true_mat[to_sum]),sig_fig), " & \\multicolumn{1}{c|}{", round(sum(count_mat[to_sum])), "} ")
+    table <- paste0(table, "& ", round(sum(cm_bias[to_sum]),sig_fig), " & \\multicolumn{1}{c|}{} ")
+    table <- paste0(table, "& ", round(sum(fd_bias[to_sum]),sig_fig), " & \\multicolumn{1}{c|}{} ")
+    table <- paste0(table, "& ", round(sum(nm_bias[to_sum]),sig_fig), " & \\multicolumn{1}{c|}{} ")
+    table <- paste(table,  "\\\\ \n")
+  }
+    
+}
+
+table <- paste0(table, "\\multicolumn{1}{c|}{} & \\multicolumn{3}{c|}{Partially Missing} &  & \\multicolumn{1}{c|}{} &   & \\multicolumn{1}{c|}{} &  &  \\multicolumn{1}{c|}{}  &  &  \\multicolumn{1}{c|}{} \\\\
+\\multicolumn{1}{c|}{} & \\multicolumn{3}{c|}{Fully Missing} &  & \\multicolumn{1}{c|}{} &  & \\multicolumn{1}{c|}{} &  &  \\multicolumn{1}{c|}{} &  &  \\multicolumn{1}{c|}{} \\\\ \\bottomrule
+\\end{tabular}%
+}
+\\caption{Comparing Initial State Probabilities for Simulations}
+\\end{table}")
+```
+
+```{r}
+library(xtable)
+new_order <- c(1,3,5,7,9,11,2,4,6,8,10,12)
+
+
+big_rows <- 12
+small_rows <- 4
+table <- ""
+sig_fig <- 3
+
+#TRAN
+true_mat <- tran_true_avg
+count_mat <- tran_true_count_med
+bias_mat <- tran_avg - tran_true_avg
+ESD_mat <- tran_sd
+
+# #CLASS
+# true_mat <- class_true_avg
+# count_mat <- class_true_count_med
+# bias_mat <- class_avg - class_true_avg
+# ESD_mat <- class_sd
+
+
+adj_state <- "0/0/0"
+
+for (i in 1:big_rows){
+  
+  if(i == 2){adj_state <-"0/1/0" }
+  else if(i == 3){adj_state <- "1/0/0"}
+  else if(i == 4){adj_state <- "1/1/0"}
+  else if(i == 5){adj_state <- "2/0/0"}
+  else if(i == 6){adj_state <- "2/1/0"}
+  else if(i == 7){adj_state <- "0/0/1"}
+  else if(i == 8){adj_state <- "0/1/1"}
+  else if(i== 9){adj_state <- "1/0/1"}
+  else if(i == 10){adj_state <- "1/1/1"}
+  else if(i == 11){adj_state <- "2/0/1"}
+  else if(i == 12){adj_state <- "2/1/1"}
+  
+  for (j in 1:small_rows){
+    
+    if (j == 1){
+     table <- paste(table, "\\multicolumn{1}{c|}{}", "&", "Truth", "&")
+     table <- paste0(table, "\\multicolumn{1}{c|}{\\multirow{4}{*}{", adj_state, "}}")
+     for (k in 1:big_rows){
+       table <- paste(table, "&", round(true_mat[new_order,new_order][i,k],sig_fig))
+      }
+    }
+    
+    if (j == 2){
+     table <- paste(table, "\\multicolumn{1}{c|}{}", "&", "N", "&", "\\multicolumn{1}{c|}{}")
+     for (k in 1:big_rows){
+       table <- paste(table, "&", ceiling(count_mat[new_order,new_order])[i,k])
+      }
+    }
+    
+    if (j == 3){
+     table <- paste(table, "\\multicolumn{1}{c|}{}", "&", "Bias", "&", "\\multicolumn{1}{c|}{}")
+     for (k in 1:big_rows){
+       if (Captured(bias_mat[new_order,new_order][i,k],ESD_mat[new_order,new_order][i,k])){
+         table <- paste(table, "&", round(bias_mat[new_order,new_order][i,k],sig_fig))
+       } else {
+         table <- paste0(table, " & ", round(bias_mat[new_order,new_order][i,k],sig_fig), "^*")
+       }
+       
+      }
+    }
+    
+    if (j == 4){
+     table <- paste(table, "\\multicolumn{1}{c|}{}", "&", "ESD", "&", "\\multicolumn{1}{c|}{}")
+     for (k in 1:big_rows){
+       table <- paste(table, "&", round(ESD_mat[new_order,new_order][i,k],sig_fig))
+      }
+    }
+    
+    table <- paste(table ," \\\\ ")
+    if (j == 4){table <- paste(table , "\\cmidrule(l){2-15} ")}
+    table <- paste(table, "\n")
+  }
+}
+
+cat(table)
+```
