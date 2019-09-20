@@ -1,0 +1,517 @@
+---
+title: "ALTS EDA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+StateCalculator <- function(val1, val2, val3){
+  if (!is.na(val1) & !is.na(val2) & !is.na(val3)){
+    return(c(6 * val1 + 2 * val2 + val3))
+  } else if (!is.na(val1) & !is.na(val2) & is.na(val3)){
+    # if(val1 == 0 & val2 == 0){
+    #   return(0)
+    # }
+    return(c(6 * val1 + 2 * val2, 6 * val1 + 2 * val2 + 1))
+  } else if (!is.na(val1) & is.na(val2) & !is.na(val3)){
+    return(c(6 * val1 + val3, 6 * val1 + 2 + val3, 6 * val1 + 4 + val3))
+  } else if (is.na(val1) & !is.na(val2) & !is.na(val3)){
+    return(c(2 * val2 + val3, 6 + 2 * val2 + val3, 12 + 2 * val2 + val3))
+  } else if (!is.na(val1) & is.na(val2) & is.na(val3)){
+    return(c(6 * val1, 6 * val1 + 1, 6 * val1 + 2, 6 * val1 + 3, 6 * val1 + 4, 6 * val1 + 5))
+  }else if (is.na(val1) & !is.na(val2) & is.na(val3)){
+    return(c(2 * val2, 2 * val2 + 1, 2 * val2 + 6, 2 * val2 + 7, 2 * val2 + 12, 2 * val2 + 13))
+  }else if (is.na(val1) & is.na(val2) & !is.na(val3)){
+    return(c(val3, val3 + 2, val3 + 4, val3 + 6, val3 + 8, val3 + 10, val3 + 12, val3 + 14, val3 + 16))
+  } else {
+    return(NA)
+  }
+}
+
+```
+
+```{r}
+GenerateData <- function(n,t,p){
+  data_mat <- matrix(0L, nrow = n, ncol = t)
+  stayer_vec <- rbinom(n,1,p)
+  
+  for (i in 1:n){
+    if (stayer_vec[i] == 0){
+      data_mat[i,1] <- which(rmultinom(1,1,init_hc) == 1) - 1
+      for (j in 2:t){
+        p_current <- tran_hc[data_mat[i,j-1]+1,]
+        data_mat[i,j] <- which(rmultinom(1,1,p_current) == 1) - 1
+      }
+    }
+  }
+  return(list(data_mat, stayer_vec))
+}
+```
+
+```{r}
+GenerateObs <- function(data_true){
+  data_obs <- matrix(NA,dim(data_true)[1], dim(data_true)[2])
+  k1 <- length(numOfStates(data_true))
+  class_true <- matrix(0, k1,k1)
+  for (i in 1:dim(data_true)[1]){
+    to_treatment <- F
+    for (j in 1:dim(data_true)[2]){
+      p_current <- class_hc[data_true[i,j]+1,]
+      new_val <- which(rmultinom(1,1,p_current) == 1) - 1
+      if (!to_treatment){
+        class_true[data_true[i,j]+1, new_val+1] <- class_true[data_true[i,j]+1, new_val+1] + 1
+        data_obs[i,j] <- new_val
+      }
+      
+      if (new_val %% 2 == 1){
+        to_treatment <- T
+      }
+
+    }
+  }
+  return(list(data_obs, class_true))
+}
+```
+
+```{r}
+Seperator <- function(data_obs){
+  hpv <- matrix(NA, dim(data_obs)[1], dim(data_obs)[2])
+  cyt <- matrix(NA, dim(data_obs)[1], dim(data_obs)[2])
+  copa <- matrix(NA, dim(data_obs)[1], dim(data_obs)[2])
+  
+  for (i in 1:dim(data_obs)[1]){
+    for (j in 1:dim(data_obs)[2]){
+      if (!is.na(data_obs[i,j])){
+        hpv[i,j] <- data_obs[i,j] %/% 6
+        cyt[i,j] <- (data_obs[i,j] %% 6) %/% 2
+        copa[i,j] <- data_obs[i,j] %% 2
+      }
+    }
+  }
+  return(list(hpv,cyt,copa))
+}
+
+```
+
+```{r}
+InitialProb <- function(data, freq_vec, stayer_vec = rep(0,length(freq_vec))){
+  init <- numeric(length(numOfStates(data)))
+  for (i in 1:dim(data)[1]){
+    if (stayer_vec[i] == 0){
+      num_of_parts <- sum(!is.na(data[i,1,]))
+      if (!is.na(data[i,1,1])){
+        for (j in data[i,1,]){
+          if (!is.na(j)){
+            init[j+1] <- init[j+1] + freq_vec[i]/num_of_parts
+          }
+          
+        }
+      }
+    }
+  }
+  return(init)
+}
+```
+
+```{r}
+ConditionalMissing <- function(missing_array){
+  cond_missing_array <- missing_array[,,3]
+  for (i in 1:dim(missing_array)[1]){
+    for (j in 1:dim(missing_array)[2]){
+      cond_missing_array[i,j] <- missing_array[i,j,3] / sum(missing_array[i,j,])
+    }
+  }
+  cond_missing_array[is.na(cond_missing_array)] <- 0
+  return(cond_missing_array)
+}
+```
+
+```{r}
+IntroduceMissing <- function(ind_data_obs, p){
+  for (i in 1:dim(ind_data_obs)[1]){
+    for (j in 1:dim(ind_data_obs)[2]){
+      if (rbinom(1,1,p)){
+        ind_data_obs[i,j] <- NA
+      }
+    }
+  }
+  return(ind_data_obs)
+}
+```
+
+```{r}
+IntroduceMissingCytology <- function(hpv, cyt, copa, p_matrix){
+  for (i in 1:dim(copa)[1]){
+    for (j in 1:dim(copa)[2]){
+      
+      if (!is.na(hpv[i,j])){
+        hpv_ind <- hpv[i,j] + 1 
+      } else {
+        hpv_ind <- 5
+      }
+      
+      if (!is.na(cyt[i,j])){
+        cyt_ind <- cyt[i,j] + 1
+      } else {
+        cyt_ind <- 4
+      }
+      
+      if (rbinom(1,1,p_matrix[hpv_ind,cyt_ind])){
+        copa[i,j] <- NA
+      }
+      
+    }
+  }
+  return(copa)
+}
+```
+
+```{r}
+IntroduceMissingAll <- function(data_obs, p_time){
+  for (i in 1:dim(data_obs)[1]){
+    for (j in 1:dim(data_obs)[2]){
+      if (rbinom(1,1,p_time[j])){
+        data_obs[i,j,] <- NA
+      }
+    }
+  }
+  return(data_obs)
+}
+```
+
+```{r}
+EffectiveLength <- function(sim_pattern){
+  total_sum <- numeric(dim(sim_pattern)[1])
+  for (i in 1:dim(sim_pattern)[1]){
+    ind_sum <- 1
+    for (j in 1:dim(sim_pattern)[2]){
+      num_of_parts <- sum(!is.na(sim_pattern[i,j,]))
+      if (num_of_parts == 0){num_of_parts <- 1}
+      ind_sum <- ind_sum * num_of_parts
+    }
+    total_sum[i] <- ind_sum
+  }
+  return(total_sum)
+}
+```
+
+```{r}
+CalcTrueInit <- function(data_true, stayer_vec_true){
+  init_true <- numeric(length(numOfStates(data_true)))
+  for (i in 1:dim(data_true)[1]){
+    if (stayer_vec_true[i] == 0 & !is.na(data_true[i,1])){
+      init_true[data_true[i,1] + 1] <- init_true[data_true[i,1] + 1] + 1
+    }
+  }
+  return(init_true)
+}
+```
+
+```{r}
+CalcTrueTran <- function(data_true, stayer_vec_true){
+  tran_true <- matrix(0,length(numOfStates(data_true)),length(numOfStates(data_true)))
+  for (i in 1:dim(data_true)[1]){
+    for (j in 2:dim(data_true)[2]){
+      if (stayer_vec_true[i] == 0 & !is.na(data_true[i,j-1]) & !is.na(data_true[i,j])){
+        tran_true[data_true[i,j-1] + 1, data_true[i,j] + 1] <- tran_true[data_true[i,j-1] + 1, data_true[i,j] + 1] + 1
+      }
+    }
+  }
+  return(tran_true)
+}
+```
+
+```{r}
+NoPartial <- function(data_obs_comp){
+  for (i in 1:dim(data_obs_comp)[1]){
+    for (j in 1:dim(data_obs_comp)[2]){
+      if (!is.na(data_obs_comp[i,j,2])){
+        data_obs_comp[i,j,] <- NA
+      }
+    }
+  }
+  return(data_obs_comp)
+}
+```
+
+```{r}
+ClassHC <- function(){
+  class_hc <- matrix(0,18,18)
+  for (i in 1:18){
+    if ((i-1) %% 2 == 0){
+      class_hc[i,i] <- .95
+      if ((((i-1) %% 6) %/% 2) == 0){
+        class_hc[i,i+2] <- (1 - class_hc[i,i])/2
+        class_hc[i,i+4] <- (1 - class_hc[i,i])/2
+      }  else if ((((i-1) %% 6) %/% 2) == 1){
+        class_hc[i,i-2] <- (1 - class_hc[i,i])/2
+        class_hc[i,i+2] <- (1 - class_hc[i,i])/2
+      } else if ((((i-1) %% 6) %/% 2) == 2){
+        class_hc[i,i-2] <- (1 - class_hc[i,i])/2
+        class_hc[i,i-4] <- (1 - class_hc[i,i])/2
+      }
+    }else {
+      class_hc[i,i] <- .95
+      if ((((i-1) %% 6) %/% 2) == 0){
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i+1] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i+2] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i+3] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i+4] <- (1 - class_hc[i,i]) / 5
+      } else if ((((i-1) %% 6) %/% 2) == 1){
+        class_hc[i,i-3] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i-2] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i+1] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i+2] <- (1 - class_hc[i,i]) / 5
+      } else if ((((i-1) %% 6) %/% 2) == 2){
+        class_hc[i,i-5] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i-4] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i-3] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i-2] <- (1 - class_hc[i,i]) / 5
+        class_hc[i,i-1] <- (1 - class_hc[i,i]) / 5
+      }
+    }
+  }
+  return(class_hc)
+}
+```
+
+```{r}
+# for (i in 1:dim(hpv_pers)[1]){
+#   for (j in 1:dim(hpv_pers)[2]){
+#     if (is.na(hpv_pers[i,j,2])){
+#       if (!is.na(hpv_pers[i,j,1]) & !is.na(cyt[i,j])){
+#         if (hpv_pers[i,j,1] == 0 & cyt[i,j] == 0){
+#           copa[i,j] <- 0
+#         }
+#       }
+#     }
+#   }
+# }
+```
+
+```{r}
+part_missing_array <- array(0,dim = c(3,4,3))
+part_missing_pers_array <- array(0,dim = c(5,4,3))
+part_missing_array_time <- array(0,dim = c(3,4,3,5))
+
+for (i in 1:dim(hpv)[1]){
+  to_treatment <- F
+  for (j in 1:dim(hpv)[2]){
+    if (!to_treatment){
+      if (is.na(hpv[i,j])){
+        hpv_pers_val <- 5
+        hpv_val <- 3
+      } else {
+        hpv_pers_val <- hpv[i,j] + 1
+        hpv_val <- hpv_og[i,j] + 1
+      }
+      if (is.na(cyt[i,j])){
+        cyt_val <- 4
+      } else {
+        cyt_val <- cyt[i,j] + 1
+      }
+      if (is.na(copa[i,j])){
+        copa_val <- 3
+      } else {
+        copa_val <- copa[i,j]  +1
+        if (copa[i,j] == 1){to_treatment <- T}
+      }
+      
+      part_missing_array[hpv_val,cyt_val,copa_val] <- part_missing_array[hpv_val,cyt_val,copa_val] + 1
+      part_missing_pers_array[hpv_pers_val,cyt_val,copa_val] <- part_missing_pers_array[hpv_pers_val,cyt_val,copa_val] + 1
+      part_missing_array_time[hpv_val,cyt_val,copa_val,j] <- part_missing_array_time[hpv_val,cyt_val,copa_val,j] + 1
+      
+    }
+  }
+}
+```
+
+```{r}
+all_missed <- part_missing_array[3,4,3]
+hpv_missing <- (sum(part_missing_array[3,,]) - all_missed) / (sum(part_missing_array) - all_missed)
+
+cyt_missing <- (sum(part_missing_array[,4,]) - all_missed) / (sum(part_missing_array) - all_missed)
+
+all_missing_by_time <- c(part_missing_array_time[3,4,3,1] / sum(part_missing_array_time[,,,1]),
+                         part_missing_array_time[3,4,3,2] / sum(part_missing_array_time[,,,2]),
+                         part_missing_array_time[3,4,3,3] / sum(part_missing_array_time[,,,3]),
+                         part_missing_array_time[3,4,3,4] / sum(part_missing_array_time[,,,4]),
+                         part_missing_array_time[3,4,3,5] / sum(part_missing_array_time[,,,5]))
+
+
+copa_missing_pers <- ConditionalMissing(part_missing_pers_array)
+
+init_counts <- InitialProb(ALTS,rep(1,3488))
+init_hc <- init_counts / sum(init_counts)
+
+tran_counts <- TransitionProb(ALTS, rep(1,3488))
+tran_hc <- tran_counts
+tran_hc[1:6,13:18] <- 0
+tran_hc[7:12,7:12] <- 0
+tran_hc[13:18,7:12] <- 0
+tran_hc <- ReduceHist(Normalize(tran_hc))
+
+class_hc <- ClassHC()
+class_hc <- diag(18)
+```
+
+```{r}
+# args <- commandArgs(trailingOnly=FALSE)
+# myargument <-  args[length(args)]
+# myargument <- unlist(strsplit(myargument,'-'))
+# seed <- as.numeric(myargument[2])
+# set.seed(seed)
+
+
+n <- 3488
+t <- 5
+p <- .06
+data_true_full <- GenerateData(n,t,p)
+data_true <- data_true_full[[1]]
+data_true_array <- array(NaN, dim = c(dim(data_true)[1], dim(data_true)[2], 2))
+data_true_array[,,1] <- data_true
+stayer_vec_true <- data_true_full[[2]]
+
+data_obs_full <- GenerateObs(data_true)
+data_obs <- data_obs_full[[1]]
+data_obs_array <- array(NaN, dim = c(dim(data_obs)[1], dim(data_obs)[2], 2))
+data_obs_array[,,1] <- data_obs
+class_counts_true <- data_obs_full[[2]]
+
+init_counts_true <- CalcTrueInit(data_true, stayer_vec_true) 
+init_true <- init_counts_true/sum(init_counts_true)
+tran_counts_true <- CalcTrueTran(data_true, stayer_vec_true) 
+tran_true <- Normalize(tran_counts_true)
+class_true <- Normalize(class_counts_true)
+pi_0_true <- sum(stayer_vec_true)/n
+
+all_seperated <- Seperator(data_obs)
+
+hpv_obs <- IntroduceMissing(all_seperated[[1]],hpv_missing)
+cyt_obs <- IntroduceMissing(all_seperated[[2]], cyt_missing)
+copa_obs <- IntroduceMissingCytology(hpv_obs, cyt_obs, all_seperated[[3]], copa_missing_pers)
+
+hpv_obs[hpv_obs > 1] <- 1
+hpv_pers_obs <- IntroducePersistence(hpv_obs)[[1]]
+
+data_obs_comp <- Combiner(hpv_pers_obs, cyt_obs, copa_obs)
+data_obs_comp <- IntroduceMissingAll(data_obs_comp, all_missing_by_time)
+
+#for current method
+current_data_array <- data_obs_comp
+
+# #for no partial
+# current_data <- NoPartial(data_obs_comp)
+# current_data_array[,,1] <- current_data
+
+# #for fully obs
+# current_data <- data_obs
+# current_data_array <- array(NA, dim = c(n,t,dim(data_obs_comp)[3]))
+# current_data_array[,,1] <- current_data
+
+all_patterns <- GetPatterns(current_data_array)
+unique_patterns <- as.data.frame(table(all_patterns), stringsAsFactors = F)
+sim_pattern_list <- Pattern2Data(unique_patterns)
+
+sim_pattern <- sim_pattern_list[[1]]
+freq_vec_sim <- sim_pattern_list[[2]]
+
+effective_length <- EffectiveLength(sim_pattern)
+
+
+
+```
+
+```{r}
+
+
+library(parallel)
+library(foreach)
+library(tictoc)
+library(doParallel)
+init <- init_true
+tran <- tran_true
+class <- class_true
+pi_0 <- pi_0_true
+
+no_cores <- 8
+cl <- makeCluster(no_cores)
+
+clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
+clusterExport(cl, c("GetAllPossibilitiesBackw"))
+clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
+
+forw <- parApply(cl, sim_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+backw <- parApply(cl, sim_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+likelihoods <- parApply(cl, sim_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+
+old_likelihood <- (log(likelihoods) %*% freq_vec_sim)[1]
+
+pi_0_new <- CalcStayer(sim_pattern,init,tran,class,freq_vec_sim,pi_0)
+init_new <- CalcInitialPattern(sim_pattern,freq_vec_sim,pi_0,forw,backw,likelihoods)
+tran_new <- CalcTransitionPattern(sim_pattern,tran,class,freq_vec_sim,pi_0, forw, backw, likelihoods)
+class_new <- CalcClassificationPattern(sim_pattern,class,freq_vec_sim, forw, backw, likelihoods,pi_0)
+
+
+pi_0 <- pi_0_new
+init <- init_new
+tran <- tran_new
+class <- class_new
+
+
+likelihoods_new <- parApply(cl, sim_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+new_likelihood <- (log(likelihoods_new) %*% freq_vec_sim)[1]
+print(-(new_likelihood - old_likelihood)/old_likelihood)
+
+while (-(new_likelihood - old_likelihood)/old_likelihood > .00000001){
+  forw <- parApply(cl, sim_pattern,1,ForwardIterFull, time = 5, init,tran,class)
+  backw <- parApply(cl, sim_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
+  likelihoods <- likelihoods_new
+
+  old_likelihood <- new_likelihood
+  
+  pi_0_new <- CalcStayer(sim_pattern,init,tran,class,freq_vec_sim,pi_0)
+  init_new <- CalcInitialPattern(sim_pattern,freq_vec_sim,pi_0,forw,backw,likelihoods)
+  tran_new <- CalcTransitionPattern(sim_pattern,tran,class,freq_vec_sim,pi_0, forw, backw, likelihoods)
+  class_new <- CalcClassificationPattern(sim_pattern,class,freq_vec_sim, forw, backw, likelihoods,pi_0)
+
+
+
+  pi_0 <- pi_0_new
+  init <- init_new
+  tran <- tran_new
+  class <- class_new
+
+  likelihoods_new <- parApply(cl, sim_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
+
+  new_likelihood <- (log(likelihoods_new) %*% freq_vec_sim)[1]
+  print(-(new_likelihood - old_likelihood)/old_likelihood)
+}
+
+
+obs_parameters <- list(init,tran,class, pi_0)
+true_parameters <- list(init_true,tran_true,class_true,pi_0_true)
+count_parameters <- list(init_counts_true, tran_counts_true, class_counts_true)
+datas <- list(sim_pattern, freq_vec_sim)
+to_save <- list(obs_parameters, true_parameters, count_parameters, datas)
+name <- paste("SimNormEM18Seed",as.character(seed),".rda",sep="")
+save(to_save, file = name)
+
+
+
+stopCluster(cl)
+
+```
+
+
+
+
+
+

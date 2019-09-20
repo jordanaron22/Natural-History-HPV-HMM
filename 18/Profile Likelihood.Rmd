@@ -1,0 +1,117 @@
+---
+title: "Profile Likelihood"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, include = FALSE, eval = FALSE}
+setwd("../Paper/Data/Profile Init 18/")
+states <- 18
+list_of_names <- list.files()
+reps <- length(list_of_names)
+getwd()
+
+init_init_array <- array(0,dim = c(1,states,reps))
+tran_init_array <- array(0,dim = c(states,states,reps))
+class_init_array <- array(0,dim = c(states,states,reps))
+
+init_est_array <- array(0,dim = c(1,states,reps))
+tran_est_array <- array(0,dim = c(states,states,reps))
+class_est_array <- array(0,dim = c(states,states,reps))
+
+likelihood_array <- numeric(reps)
+pi_init_array <- numeric(reps)
+pi_est_array <- numeric(reps)
+time_array <- numeric(reps)
+
+init_init_list <- vector("list", length = reps)
+tran_init_list <- vector("list", length = reps)
+class_init_list <- vector("list", length = reps)
+
+init_est_list <- vector("list", length = reps)
+tran_est_list <- vector("list", length = reps)
+class_est_list <- vector("list", length = reps)
+
+count <- 1
+
+for (name in list_of_names){
+  load(name)
+  
+  init_parameters <- to_save[[1]]
+  est_parameters <- to_save[[2]]
+  likelihood_array[count] <- to_save[[3]]
+  # time_array[count] <- to_save[[4]] / (60 * 60 * 24)
+  
+  pi_init_array[count] <- init_parameters[[4]]
+  pi_est_array[count] <- est_parameters[[4]]
+  
+  init_init_list[[count]] <- init_parameters[[1]]
+  tran_init_list[[count]] <- init_parameters[[2]]
+  class_init_list[[count]] <- init_parameters[[3]]
+  
+  init_est_list[[count]] <- est_parameters[[1]]
+  tran_est_list[[count]] <- est_parameters[[2]]
+  class_est_list[[count]] <- est_parameters[[3]]
+  
+  
+  
+  
+  for (i in 1:states){
+    init_init_array[1,i,count] <- init_init_list[[count]][i]
+    init_est_array[1,i,count] <- init_est_list[[count]][i]
+    
+    for (j in 1:states){
+      tran_init_array[i,j,count] <- tran_init_list[[count]][i,j]
+      tran_est_array[i,j,count] <- tran_est_list[[count]][i,j]
+      
+      class_init_array[i,j,count] <- class_init_list[[count]][i,j]
+      class_est_array[i,j,count] <- class_est_list[[count]][i,j]
+    }
+  }
+  
+  count <- count + 1
+}
+
+
+#############################################
+
+
+
+```
+
+```{r}
+library(plotly)
+
+prof_two <- init_est_array[1,2,]
+prof_seven <- init_est_array[1,7,]
+prof_nine <- init_est_array[1,9,]
+
+plot(prof_two, likelihood_array)
+plot(prof_seven, likelihood_array)
+plot(prof_nine, likelihood_array)
+
+plot_ly(x = prof_two, y = prof_seven, z = likelihood_array, type = "contour")
+plot_ly(x = prof_two, y = prof_nine, z = likelihood_array, type = "contour")
+plot_ly(x = prof_seven, y = prof_nine, z = likelihood_array, type = "contour")
+
+
+plot_ly(x = prof_two, y = prof_seven, z = likelihood_array)
+plot_ly(x = prof_two, y = prof_nine, z = likelihood_array)
+plot_ly(x = prof_seven, y = prof_nine, z = likelihood_array)
+```
+
+```{r}
+library(plotly)
+
+prof_one_two <- tran_est_array[1,2,]
+prof_one_four <- tran_est_array[1,4,]
+
+plot(prof_one_two,likelihood_array)
+plot(prof_one_four,likelihood_array)
+
+plot_ly(x = prof_one_two, y = prof_one_four, z = likelihood_array)
+plot_ly(x = prof_one_two, y = prof_one_four, z = likelihood_array, type = "contour")
+```
