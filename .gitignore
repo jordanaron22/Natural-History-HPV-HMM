@@ -8,3 +8,8 @@ Datasets/
 Sims/
 parameters.rda
 scripting/
+.gitignore.Rmd
+18/Old/
+18/SideTracked
+Fixing Mistake.R
+*.rda

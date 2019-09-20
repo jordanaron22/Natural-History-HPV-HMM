@@ -113,7 +113,7 @@ clusterExport(cl, c("numOfStates", "GetAllPossibilitiesForw", "Classification"))
 clusterExport(cl, c("GetAllPossibilitiesBackw"))
 clusterExport(cl, c("ForwardIterFull", "BackwardIterFull", "CalcProdInd"))
 
-forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 1, init,tran,class)
+forw <- parApply(cl, ALTS_pattern,1,ForwardIterFull, time = 5, init,tran,class)
 backw <- parApply(cl, ALTS_pattern,1,FUN = BackwardIterFull, time = 1, tran, class)
 likelihoods <- parApply(cl, ALTS_pattern,1,FUN = CalcIndLikelihood, init, tran, class,pi_0)
 
